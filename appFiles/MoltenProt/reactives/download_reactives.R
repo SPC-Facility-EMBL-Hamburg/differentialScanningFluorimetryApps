@@ -168,12 +168,14 @@ output$download_unfolded_fraction_plot <- downloadHandler(filename = function() 
 observeEvent(input$downloadReport,{
   req(fluo_fit_data())
   reactives$report_was_created             <- FALSE
-  filename <- paste0(input$filename_report,".pdf")
+
   withBusyIndicatorServer("downloadReport",{ 
     
     reactives$reportDir <- paste0(tempfile(),'/')
     dir.create(reactives$reportDir)
-    
+
+    filename <- paste0(reactives$reportDir,input$filename_report,".pdf")
+
     file.copy(paste0(base_dir,"report_template/report.Rmd"), reactives$reportDir, overwrite = TRUE)
     file.copy(paste0(base_dir,"report_template/header.tex"), reactives$reportDir, overwrite = TRUE)
     
