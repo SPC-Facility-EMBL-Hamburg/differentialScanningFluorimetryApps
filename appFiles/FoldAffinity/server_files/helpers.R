@@ -1,20 +1,33 @@
 #welcome message
-
-welcome_message <- function(){
-  shinyalert(paste("Welcome to FoldAffinity <br><small>By clicking the 'I accept' button and using the eSPC Software, 
-  you agree to be bound by the
-  terms of this <a href='eSPC_academicSoftwareLicenseAgreement _EMBLEM.pdf' target='_blank' rel='noopener noreferrer'>Academic Software License Agreement</a>. You acknowledge that this Agreement
-  is enforceable like any written agreement negotiated and signed by you. If you do not agree,
-  please click the 'I decline' button and exit the Software. If you
-  are not a member of a public funded academic and/or education and/or research institution,
-  please contact <a href='https://embl-em.de/company/contact/' target='_blank' rel='noopener noreferrer'>EMBLEM</a>. </small>"),#imageUrl="embl_logo.svg",
-             imageWidth = 180,imageHeight = 180,closeOnClickOutside=FALSE,closeOnEsc=FALSE,
-             confirmButtonText="I accept",size = "m",
-             showCancelButton=TRUE,cancelButtonText="I decline",html=TRUE,
-             confirmButtonCol="#8bb8e8",
-             callbackR = function(x) {
-               if (!x) welcome_message()
-             })
+welcome_message <- function() {
+  shinyalert(
+    paste(
+      "Welcome to FoldAffinity! <br><small>This software is free for academic use. By clicking 'I accept,' you agree to the
+      <a href='eSPC_academicSoftwareLicenseAgreement_EMBLEM.pdf' target='_blank' rel='noopener noreferrer'>Academic Software License Agreement</a>.
+      For non-academic use, please contact
+      <a href='https://embl-em.de/company/contact/' target='_blank' rel='noopener noreferrer'>EMBLEM</a>.<br>
+      If this tool was useful for your project, please remember to cite both the
+      <a href='https://www.nature.com/articles/s41598-021-88985-z' target='_blank' rel='noopener noreferrer'> FoldAffinity publication</a>
+      and the
+      <a href='https://journals.iucr.org/d/issues/2021/10/00/qt5002/qt5002.pdf' target='_blank' rel='noopener noreferrer'> eSPC publication</a>.
+      Additionally, please consider starring our
+      <a href='https://github.com/SPC-Facility-EMBL-Hamburg/eSPC_biophysics_platform' target='_blank' rel='noopener noreferrer'>GitHub</a>
+      repository.</small>"
+    ),
+    imageWidth = 180,
+    imageHeight = 180,
+    closeOnClickOutside = FALSE,
+    closeOnEsc = FALSE,
+    confirmButtonText = "I accept",
+    size = "m",
+    showCancelButton = TRUE,
+    cancelButtonText = "I decline",
+    html = TRUE,
+    confirmButtonCol = "#8bb8e8",
+    callbackR = function(x) {
+      if (!x) welcome_message()
+    }
+  )
 }
 
 ## Count folders in the current directory
