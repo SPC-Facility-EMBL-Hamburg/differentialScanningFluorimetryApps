@@ -7,7 +7,9 @@ welcome_message <- function() {
       <a href='https://embl-em.de/company/contact/' target='_blank' rel='noopener noreferrer'>EMBLEM</a>.<br>
       If this tool was useful for your project, please remember to cite the
       <a href='https://journals.iucr.org/d/issues/2021/10/00/qt5002/qt5002.pdf' target='_blank' rel='noopener noreferrer'>eSPC publication</a>
-      and consider starring our
+      and the
+      <a href='https://onlinelibrary.wiley.com/doi/full/10.1002/pro.3986' target='_blank' rel='noopener noreferrer'>MoltenProt publication</a>.
+      Additionally, please consider starring our
       <a href='https://github.com/SPC-Facility-EMBL-Hamburg/eSPC_biophysics_platform' target='_blank' rel='noopener noreferrer'>GitHub</a>
       repository.</small>"
     ),
