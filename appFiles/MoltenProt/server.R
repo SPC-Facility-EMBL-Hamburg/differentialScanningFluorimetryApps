@@ -13,7 +13,7 @@ function(input, output, session) {
   # ... Initialize python_nanoDSF class ...
   dsf <- DSF_molten_prot_fit()
   
-  welcome_message()
+  #welcome_message()
   
   source(paste0(base_dir,"reactives/reactives.R"           ), local = T)
   source(paste0(base_dir,"reactives/download_reactives.R"  ), local = T)

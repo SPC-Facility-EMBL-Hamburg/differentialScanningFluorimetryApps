@@ -22,6 +22,10 @@ shinyUI(dashboardPage(title = "FoldAffinity",
       ),
   
   dashboardBody(theme_grey_light,
+
+    includeHTML("www/banners.html"),
+    includeScript("www/banner.js"),
+
     tabItems(
       tabItem(tabName = "menu_input",
         fluidRow(
