@@ -1,8 +1,11 @@
 import numpy  as np
+import codecs
 import pandas as pd
 import codecs
 from openpyxl import load_workbook
 from xlrd     import open_workbook
+
+from collections import Counter
 
 def get_sheet_names_of_xlsx(filepath):
 
@@ -24,9 +27,78 @@ def get_sheet_names_of_xlsx(filepath):
  
     return sheetnames
 
+def detect_encoding(file_path):
+    encodings = ["utf-8", "latin1", "iso-8859-1", "cp1252"]
+    for enc in encodings:
+        try:
+            with codecs.open(file_path, encoding=enc, errors="strict") as f:
+                f.read()
+            return enc
+        except UnicodeDecodeError:
+            continue
+    return "Unknown encoding"
+
 def isBlank (myString):
 
     return (not (myString and myString.strip())) or myString == "nan" 
+
+def find_indexes_of_non_signal_conditions(signal_data,conditions):
+
+    # Find the indexes of conditions with derivative in it, or 'S.D.' in it
+    idx_to_remove1 = [i for i, cond in enumerate(conditions) if 'derivative' in cond.lower() or 's.d.' in cond.lower()]
+
+    # Find indexes empty signal_data columns
+    idx_to_remove2 = [i for i in range(signal_data.shape[1]) if np.isnan(signal_data[:, i]).all()]
+
+    # Find columns where all values are NaN
+    nan_columns = np.all(np.isnan(signal_data), axis=0)
+
+    # Get the column indices
+    idx_to_remove3 = np.where(nan_columns)[0].tolist()
+
+    # Find unique indexes to remove
+    idx_to_remove = list(set(idx_to_remove1 + idx_to_remove2 + idx_to_remove3))
+
+    return idx_to_remove
+
+def find_repeated_words(string_lst):
+
+    """
+    Given a list of strings, find the repeated words in the list
+
+    Args:
+
+        string_lst (lst): list of strings
+
+    Returns:
+
+        repeated_words (lst): list of repeated words
+
+    """
+
+    # Repeated words
+    words = " ".join(string_lst).split()
+
+    # Count the occurrences of each word
+    word_counts = Counter(words)
+
+    # Find words that are repeated (appear, at least, as many times as elements in string_lst)
+    repeated_words = [word for word, count in word_counts.items() if count >= len(string_lst)]
+
+    return repeated_words
+
+def remove_words_in_string(input_string,word_list):
+
+    # Split the string into words
+    words = input_string.split()
+
+    # Replace words from the list with an empty string
+    filtered_words = [word for word in words if word not in word_list]
+
+    # Join the words back into a single string
+    output_string = ' '.join(filtered_words)
+
+    return output_string
 
 def subset_panta_data(data,columns_positions):
 

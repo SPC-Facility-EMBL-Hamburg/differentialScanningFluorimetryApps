@@ -455,20 +455,125 @@ class DSF_molten_prot_fit:
 
         """
 
-        dat            = pd.read_csv(file)
+        self.init_dictionary_to_store_fluo_temp_data()
+        signals = []
 
-        conditions  = [str(c) for c in dat.columns[1:]]
-        
+        encoding = detect_encoding(file)
+
+        # Try common delimiters
+        for delimiter in [',',';','\t']:
+
+            try:
+
+                dat  = pd.read_csv(file,delimiter=delimiter,encoding=encoding)
+
+                # Convert non-numeric columns to NaN
+                dat = dat.apply(pd.to_numeric, errors='coerce')
+
+                # Produce error if we don't have 2 or more columns
+                if len(dat.columns) < 2:
+                    raise ValueError('File does not have enough columns')
+
+                # Set the conditions names and start index for the signal data
+                if 'time' in dat.columns[0].lower():
+                    conditions = [str(c) for c in dat.columns[2:]]
+                    idx_start = 1
+                else:
+                    conditions = [str(c) for c in dat.columns[1:]]
+                    idx_start = 0
+
+                signal_data      = np.array(dat.iloc[:, (idx_start + 1):]).astype('float')
+                temperature_data = np.array(dat.iloc[:, idx_start]).astype('float')
+
+                # Produce error if signal data is empty
+                if signal_data.size == 0:
+                    raise ValueError('Signal data is empty')
+
+                # Produce error if temperature data  is non-numeric
+                if np.isnan(temperature_data).any():
+                    raise ValueError('Temperature data is non-numeric')
+
+                break
+
+            except:
+
+                pass
+
+        idx_to_remove = find_indexes_of_non_signal_conditions(signal_data,conditions)
+
+        # Remove the elements from the conditions array
+        conditions = [cond for i,cond in enumerate(conditions) if i not in idx_to_remove]
+
+        # Remove the columns from the signal data
+        signal_data = np.delete(signal_data,idx_to_remove,axis=1)
+
+        # Convert temperature to kelvin, if required
+        if np.max(temperature_data) < 273.15:
+            temperature_data = temperature_data + 273.15
+
+        # Divide the conditions into groups, according to the presence of the words '350', '330', 'ratio', 'scattering'
+        conditions_350nm = [cond for cond in conditions if '350' in cond.lower() and 'ratio' not in cond.lower()]
+        conditions_330nm = [cond for cond in conditions if '330' in cond.lower() and 'ratio' not in cond.lower()]
+        conditions_ratio = [cond for cond in conditions if 'ratio' in cond.lower()]
+        conditions_scatt = [cond for cond in conditions if 'scattering' in cond.lower()]
+
+        # Check that the number of conditions is the same for all groups
+        conditions_lst = [conditions_350nm,conditions_330nm,conditions_ratio,conditions_scatt]
+        sel_cond_lst   = [cond for cond in conditions_lst if len(cond) > 0]
+        n_conditions   = [len(cond) for cond in conditions_lst if len(cond) > 0]
+
+        possible_rep_conditions = len(np.unique(n_conditions)) == 1
+
+        if possible_rep_conditions:
+
+            # For each group, store the signal data and the temperature data
+            if len(conditions_350nm) > 0:
+                signal_350 = signal_data[:, [i for i, cond in enumerate(conditions) if cond in conditions_350nm]]
+                self.signal_data_dictionary["350nm"] = signal_350
+                self.temp_data_dictionary["350nm"] = temperature_data
+                signals.append("350nm")
+
+            if len(conditions_330nm) > 0:
+                signal_330 = signal_data[:, [i for i, cond in enumerate(conditions) if cond in conditions_330nm]]
+                self.signal_data_dictionary["330nm"] = signal_330
+                self.temp_data_dictionary["330nm"] = temperature_data
+                signals.append("330nm")
+
+            if len(conditions_ratio) > 0:
+                signal_ratio = signal_data[:, [i for i, cond in enumerate(conditions) if cond in conditions_ratio]]
+                self.signal_data_dictionary["Ratio 350 nm / 330 nm"] = signal_ratio
+                self.temp_data_dictionary["Ratio 350 nm / 330 nm"] = temperature_data
+                signals.append("Ratio 350 nm / 330 nm")
+
+            if len(conditions_scatt) > 0:
+                signal_scatt = signal_data[:, [i for i, cond in enumerate(conditions) if cond in conditions_scatt]]
+                self.signal_data_dictionary["Scattering"] = signal_scatt
+                self.temp_data_dictionary["Scattering"] = temperature_data
+                signals.append("Scattering")
+
+            cond_temp =  sel_cond_lst[0]
+
+            repeated_words = find_repeated_words(cond_temp)
+            cond_temp      = [remove_words_in_string(cond,repeated_words) for cond in cond_temp]
+            conditions     = cond_temp
+
+        else:
+
+            # If we only have one condition, use the condition as signal name
+            if len(conditions) == 1:
+                signal_name = conditions[0]
+            # Default signal name
+            else:
+                signal_name = "Fluorescence"
+
+            self.signal_data_dictionary[signal_name] = signal_data
+            self.temp_data_dictionary[signal_name]   = temperature_data
+            signals.append(signal_name)
+
         self.conditions            = conditions
         self.conditions_original   = conditions
 
-        self.init_dictionary_to_store_fluo_temp_data()
-
-        signal = "Fluorescence"
-
-        self.signal_data_dictionary[signal]   = np.array(dat.iloc[:,1:]).astype('float')
-        self.temp_data_dictionary[signal]     = np.array(dat.iloc[:, 0]).astype('float')  + 273.15 # To kelvin
-        self.signals = np.array([signal])
+        self.signals = np.array(signals)
 
         return None
 
@@ -594,7 +699,6 @@ class DSF_molten_prot_fit:
 
                 idx350 = np.argmin(diff_350)
                 idx330 = np.argmin(diff_330)
-
 
                 f350   =  self.signal_data_dictionary[named_wls[idx350]]
                 f330   =  self.signal_data_dictionary[named_wls[idx330]]
@@ -1367,9 +1471,3 @@ class DSF_molten_prot_fit:
         self.pkd = get_IrrevTwoState_pkd(Tf_all,Ea_all)
 
         return None
-
-if False:
-
-    t = DSF_molten_prot_fit()
-    t.load_nanoDSF_xlsx('/home/osvaldo/spc_shiny_servers/foldA_moltenP_apps/moltenprot/www/demo.xlsx')
-    
