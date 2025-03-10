@@ -553,9 +553,15 @@ class DSF_molten_prot_fit:
 
             cond_temp =  sel_cond_lst[0]
 
-            repeated_words = find_repeated_words(cond_temp)
-            cond_temp      = [remove_words_in_string(cond,repeated_words) for cond in cond_temp]
-            conditions     = cond_temp
+            if len(cond_temp) > 1:
+
+                repeated_words = find_repeated_words(cond_temp)
+                cond_temp      = [remove_words_in_string(cond,repeated_words) for cond in cond_temp]
+                conditions     = cond_temp
+
+            else:
+
+                conditions = [file]
 
         else:
 
