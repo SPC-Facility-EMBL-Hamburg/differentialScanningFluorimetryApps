@@ -561,7 +561,7 @@ class DSF_molten_prot_fit:
 
             else:
 
-                conditions = [file]
+                conditions = cond_temp
 
         else:
 
