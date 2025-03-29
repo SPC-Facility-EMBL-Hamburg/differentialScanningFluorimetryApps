@@ -94,7 +94,16 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
                       icon("arrow-right"),
                       style="color: #fff; background-color: #337ab7; 
                border-color: #2e6da4"))),
-        
+
+        column(12, p(HTML("<b>\nWavelength  range (nm)</b>"),
+                   span(shiny::icon("info-circle"), id = "info_uu1-wl"),
+
+                   sliderInput("wl_range", NULL,min = 0, max = 800,value = c(0,800)),
+                   tippy::tippy_this(elementId = "info_uu1-wl",
+                   tooltip = "Select the wavelength range of interest to show in the whole spectra
+                   plots.",
+                   placement = "right")))
+
         )
     
     ))

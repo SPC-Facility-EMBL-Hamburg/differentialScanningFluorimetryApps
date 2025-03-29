@@ -65,7 +65,10 @@ renderSpectralPlots <- function() {
     
     tog2      <- tog[tog$name %in% unique(tog$name)[(20*i+1):(20*(i+1))],]
     tog2$name <- factor(tog2$name,levels=unique(tog2$name))
-    fig       <- plot_whole_spectra(tog2)
+
+    fig       <- plot_whole_spectra(
+        tog2,font_size = input$plot_font_size,
+        min_wl=input[['wl_range']][1],max_wl=input[['wl_range']][2])
     
     output[[tabPanelName]] <- renderPlot(fig)
     
@@ -148,7 +151,12 @@ observeEvent(input$FLf,{
       
       if (fileExtension == "supr") {
         dsf$load_supr_dsf(input$FLf$datapath)
-        
+
+        # Update the wavelength range slider
+        updateSliderInput(session,"wl_range",NULL,
+                          min = dsf$min_wavelength, max = dsf$max_wavelength,
+                          value = c(dsf$min_wavelength,dsf$max_wavelength))
+
         reactives$full_spectra   <- TRUE
         reactives$include_vector <- rep(T,length(dsf$conditions))
         
@@ -169,6 +177,12 @@ observeEvent(input$FLf,{
           dsf$load_tycho_xlsx(input$FLf$datapath)
         } else if (file_is_of_type_uncle(input$FLf$datapath)) {
           dsf$load_uncle_multi_channel(input$FLf$datapath)
+
+          # Update the wavelength range slider
+          updateSliderInput(session,"wl_range",NULL,
+                            min = dsf$min_wavelength, max = dsf$max_wavelength,
+                            value = c(dsf$min_wavelength,dsf$max_wavelength))
+
           reactives$full_spectra   <- TRUE
           reactives$include_vector <- rep(T,length(dsf$conditions))
         } else {

@@ -719,6 +719,10 @@ class DSF_molten_prot_fit:
 
         self.signals = np.array([named_wls])
 
+        # Assign minimum and maximum wavelengths to self
+        self.min_wavelength = np.floor(np.min(wavelengths))
+        self.max_wavelength = np.ceil(np.max(wavelengths))
+
         return None
 
     def load_uncle_multi_channel(self,uncle_file):
@@ -770,7 +774,6 @@ class DSF_molten_prot_fit:
 
                 # Extract the sample name, from the first row, fitfh column
                 sample_name = data.iloc[0, 4]
-                print(sample_name)
 
                 # Remove the first row
                 data = data.iloc[1:, :]
@@ -880,6 +883,10 @@ class DSF_molten_prot_fit:
 
         self.conditions          = np.array(conditions)
         self.conditions_original = np.array(conditions)
+
+        # Assign minimum and maximum wavelengths to self
+        self.min_wavelength = np.floor(np.min(wavelengths))
+        self.max_wavelength = np.ceil(np.max(wavelengths))
 
         return None
 
@@ -1636,7 +1643,3 @@ class DSF_molten_prot_fit:
         self.pkd = get_IrrevTwoState_pkd(Tf_all,Ea_all)
 
         return None
-
-if False:
-    file = '/home/osvaldo/Downloads/UNcle (multiple channels).xlsx'
-    print(file_is_of_type_uncle(file))

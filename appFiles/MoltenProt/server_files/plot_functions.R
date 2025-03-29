@@ -48,9 +48,14 @@ plot_fluo_signal <- function(fluo_m,y_label, plot_width, plot_height, plot_type,
 # 'value' : the measured fluorescence,      for the y-axis
 # 'temps' : temperature in degree Celsius,  for coloring
 # 'name'  : name of the condition,          for dividing the plot
+# 'font_size': font size of the plot
+# 'min_wl' : minimum wavelength to plot
+# 'max_wl' : maximum wavelength to plot
 
-plot_whole_spectra <- function(df,font_size=18) {
-  
+plot_whole_spectra <- function(df,font_size=18,min_wl=0,max_wl=800) {
+
+  df <- df %>% filter(wl >= min_wl & wl <= max_wl)
+
   ggplot(df,aes(x=wl,y=value,color=temps,group=temps))+
     geom_line()+
     facet_wrap(~name)+
