@@ -167,7 +167,11 @@ observeEvent(input$FLf,{
           dsf$load_panta_xlsx(input$FLf$datapath)
         } else if ("Profiles_raw" %in% sheet_names) {
           dsf$load_tycho_xlsx(input$FLf$datapath)
-        }else {
+        } else if (file_is_of_type_uncle(input$FLf$datapath)) {
+          dsf$load_uncle_multi_channel(input$FLf$datapath)
+          reactives$full_spectra   <- TRUE
+          reactives$include_vector <- rep(T,length(dsf$conditions))
+        } else {
           dsf$load_nanoDSF_xlsx(input$FLf$datapath,sheet_names)
         }
       

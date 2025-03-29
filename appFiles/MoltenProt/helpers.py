@@ -7,6 +7,18 @@ from xlrd     import open_workbook
 
 from collections import Counter
 
+def temperature_to_kelvin(temp):
+    """
+    Convert temperature to Kelvin
+    """
+
+    if (np.max(temp) < 273.15):
+        # If the temperature is in Celsius
+        return temp + 273.15
+    else:
+        # If the temperature is already in Kelvin
+        return temp
+
 def get_sheet_names_of_xlsx(filepath):
 
     """
@@ -26,6 +38,34 @@ def get_sheet_names_of_xlsx(filepath):
         sheetnames =  xls.sheet_names()
  
     return sheetnames
+
+def file_is_of_type_uncle(xlsx_file):
+
+    """
+    Check if the file is an uncle file
+    """
+
+    try:
+
+        # Read the first sheet of the xlsx file
+        data = pd.read_excel(xlsx_file,skiprows=1,nrows=5,header=None)
+
+        # Extrac the first row
+        row = data.iloc[0,1:]
+
+        # concatenate the row into a string
+        row_str = ' '.join([str(x) for x in row])
+
+        # count the number of times we have word 'Time' and 'Temp'
+        count_time = row_str.count('Time')
+        count_temp = row_str.count('Temp')
+
+        if count_time > 20 and count_temp > 20 and count_temp == count_time:
+            return True
+        else:
+            return False
+    except:
+        return False
 
 def detect_encoding(file_path):
     encodings = ["utf-8", "latin1", "iso-8859-1", "cp1252"]
