@@ -334,8 +334,11 @@ get_sorted_params_table_errors <- function(errors_percentage_all,fitted_conditio
 }
 
 get_fitted_conditions_table <- function(conditions,fitted_conditions){
+
   fitting_ok <- conditions %in% fitted_conditions
+
   df <- data.frame(cond=conditions,fit_ok=fitting_ok)
+
   df$fit_ok <- ifelse(df$fit_ok,"OK","FAILED")
   colnames(df) <- c("Condition","Fitting algorithm worked")
   

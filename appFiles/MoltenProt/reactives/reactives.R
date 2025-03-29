@@ -173,7 +173,7 @@ observeEvent(input$FLf,{
       
       }
       
-      conditions <- dsf$conditions
+      conditions <- c(dsf$conditions)
       dsf$set_signal(dsf$signals[1])
       updateSelectInput(session, "which",choices  = dsf$signals)
       
@@ -285,7 +285,12 @@ modify_fluo_temp_cond <- reactive({
 
   # ... use only the conditions selected by the user ...
   dsf$conditions         <- conditions_vector[include_vector]
-  
+
+  # Convert to list if we have a string (only one condition)
+  if (length(dsf$conditions) == 1) {
+      dsf$conditions <- list(dsf$conditions)
+  }
+
   # Return NULL if no conditions are selected
   if (all(!include_vector))   return(NULL)
   
@@ -470,7 +475,7 @@ output$data_was_fitted <- reactive({
   req(input$table1)
   # re evaluate expression if the user fitted data again
   req(input$btn_cal)
-  return(length(dsf$fitted_conditions)>1)
+  return(length(dsf$fitted_conditions)>0)
 
 })
 
@@ -543,6 +548,7 @@ output$fluo_residuals_plot <- renderPlot({
 
 output$fitted_conditions_table <- renderTable({
   req(fluo_fit_data())
+
   return(get_fitted_conditions_table(dsf$conditions,
                                      dsf$fitted_conditions))
 })

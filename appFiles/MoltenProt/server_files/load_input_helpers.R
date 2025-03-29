@@ -254,13 +254,13 @@ get_renderRHandsontable_list <- function(conditions,n_rows_conditions_table) {
 
 ## Divide each column of the fluorescence matrix by the median of the first 2 degrees
 normalize_matrix_by_initial_value <- function(fluo_matrix,temp_vector) {
-  
+
   npoints <- length(temp_vector[temp_vector < min(temp_vector)+2])
-  
-  initial_vales <- apply(fluo_matrix[1:npoints,], 2, median)
-  
+
+  initial_vales <- apply(fluo_matrix[1:npoints,,drop = FALSE], 2, median)
+
   fluo_matrix_norm   <- t(t(fluo_matrix) / initial_vales)
-  
+
   return(fluo_matrix_norm)
 }
 

@@ -1477,3 +1477,15 @@ class DSF_molten_prot_fit:
         self.pkd = get_IrrevTwoState_pkd(Tf_all,Ea_all)
 
         return None
+
+if False:
+    file = '/home/osvaldo/Downloads/Panta File - Failed.csv'
+    mp   = DSF_molten_prot_fit()
+    mp.load_csv_file(file)
+    mp.set_signal('Ratio 350 nm / 330 nm')
+    mp.estimate_fluo_derivates()
+    mp.estimate_baselines_parameters(8)
+    mp.cp = 0
+    mp.EquilibriumTwoState()
+    print(mp.conditions)
+    print(mp.fitted_conditions)
