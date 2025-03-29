@@ -1,6 +1,6 @@
 # The FoldAffinity and MoltenProt apps
 
-Last time updated: November 2024
+Last time updated: March 2025
 
 ## Introduction
 
