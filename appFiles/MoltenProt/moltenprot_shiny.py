@@ -118,7 +118,20 @@ class DSF_molten_prot_fit:
             indices   = np.argwhere(dat.iloc[:, 0].values == 'Time [s]')
             first_row = int(indices[0][0]) + 1
 
-            #first_row = int(np.argwhere(list(dat.iloc[:, 0] == 'Time [s]'))) + 1
+            # Find all the columns with the word temperature
+            column_headers = dat.iloc[first_row-1, :].values
+
+            ids_temperature = [i for i,x in enumerate(column_headers) if 'temperature' in x.lower()]
+            ids_time        = [i for i,x in enumerate(column_headers) if 'time' in x.lower()]
+
+            # If we have more than one temperature column, remove the extra temperature and time columns
+            if len(ids_temperature) > 1:
+
+                ids_temperature = ids_temperature[1:] # We keep the first temperature colummn
+                ids_time        = ids_time[1:]        # We keep the first time column
+
+                # Remove columns of dataframe by index
+                dat = dat.drop(dat.columns[ids_temperature+ids_time], axis=1)
 
             fluo   = np.array(dat.iloc[first_row:, 2:]).astype('float')
             temp   = np.array(dat.iloc[first_row:, 1]).astype('float')

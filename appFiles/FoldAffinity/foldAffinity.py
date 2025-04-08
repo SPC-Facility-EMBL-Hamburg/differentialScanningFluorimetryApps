@@ -241,6 +241,21 @@ elements separated by semicolons.'}
             indices   = np.argwhere(dat.iloc[:, 0].values == 'Time [s]')
             first_row = int(indices[0][0]) + 1
 
+            # Find all the columns with the word temperature
+            column_headers = dat.iloc[first_row-1, :].values
+
+            ids_temperature = [i for i,x in enumerate(column_headers) if 'temperature' in x.lower()]
+            ids_time        = [i for i,x in enumerate(column_headers) if 'time' in x.lower()]
+
+            # If we have more than one temperature column, remove the extra temperature and time columns
+            if len(ids_temperature) > 1:
+
+                ids_temperature = ids_temperature[1:] # We keep the first temperature colummn
+                ids_time        = ids_time[1:]        # We keep the first time column
+
+                # Remove columns of dataframe by index
+                dat = dat.drop(dat.columns[ids_temperature+ids_time], axis=1)
+
             fluo   = np.array(dat.iloc[first_row:, 2:]).astype('float')
             temp   = np.array(dat.iloc[first_row:, 1]).astype('float') 
 
@@ -1024,87 +1039,3 @@ elements separated by semicolons.'}
         self.tms = fit_params[0]
         
         return fit_params, fit_errors, fit_melting
-
-debug_run = False
-
-xls_file1 = "./www/nDSFdemoFile.xlsx"
-
-if debug_run:
-
-    concentrations = [5,5,2.5,2.5,1.3,1.3,0.63,0.63,0.31,0.31,0.16,0.16,0.078,0.078,0.039,0.039,0.02,0.02,
-    0.0098,0.0098,0.0049,0.0049,0.0024,0.0024,0.0012,0.0012,0.00061,0.00061,0.00031,0.00031,0.00015,0.00015]
-
-    concentrations = [x / 1000 for x in concentrations]
-
-    t = DSF_binding()
-
-    t.load_nanoDSF_xlsx(xls_file1)
-    t.set_signal('Ratio')
-
-    t.concentrations = np.array(concentrations)
-
-    #t.median_filter(2)
-
-    t.fluo  = filter_fluo_by_temp(t.fluo,t.temps,40,90)
-    t.temps = filter_temp_by_temp(t.temps,40,90)
-
-    t.fluo  = t.fluo[:,:32]
-
-    t.cp = 0
-
-    t.fit_fluo_local()
-    t.fit_fluo_global()
-    #t.fit_fluo_global_cp()
-
-    #print(t.cp)
-
-    t.pconc = 6.5/(1E6)
-    t.isothermal_ts = np.array([65,66])
-    t.fit_isothermal("One_Site")
-    t.shiny_export_fit_fluo()
-    t.shiny_export_isothermal()
-
-    t.export_JSON_file('person.json')
-
-if False:
-
-    t2 = DSF_binding()
-    t2.load_JSON_file("/home/osvaldo/Downloads/fAffinitySession_2023-05-21.json")
-
-    t2.export_JSON_file("/home/osvaldo/Downloads/test.json")
-
-    #kds = [x[1]*1E6 for x in t.bind_params ]
-
-    #errors = [x[1]*1E6 for x in t.bind_errors ]
-
-    #errors = (np.array(errors) / np.array(kds)) * 100
-
-    #print(t.bind_ci95_asymmetric)
-    #print(errors)
-
-
-#t = DSF_binding()
-#folder="/home/osvaldo/pkng_inhibitors/SupplementaryMaterial/melting_curves_analysis"
-#file=folder+"/"+"2.3.20-lig04-m9-zn-dtrp-batch2.xlsx"
-#t.load_nanoDSF_xlsx(file)
-#t.set_signal('350nm')
-
-#t.fluo  = filter_fluo_by_temp(t.fluo,t.temps,30,50)
-#t.temps = filter_temp_by_temp(t.temps,30,50)
-
-#np.save('testFluo.npy', t.fluo)    # .npy extension is added if not given
-#np.save('testTemp.npy', t.temps) 
-
-#file = "/home/osvaldo/Downloads/2022-01-19_1616CET_T6-039.xlsx"
-#snames = (get_sheet_names_of_xlsx(file))
-#print(snames)
-#t.load_tycho_xlsx(file)
-
-#print(t.fluo)
-#t.set_signal('Ratio')
-#t.median_filter(5)
-#t.estimate_fluo_derivates(10)
-
-
-
-#print(t.min_derivative)
