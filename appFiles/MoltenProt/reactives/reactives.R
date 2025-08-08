@@ -22,6 +22,27 @@ outputOptions(output, "data_loaded"       , suspendWhenHidden = FALSE)
 outputOptions(output, "report_was_created", suspendWhenHidden = FALSE)
 outputOptions(output, "full_spectra"      , suspendWhenHidden = FALSE)
 
+resetConditionsTable <- function() {
+
+    output$table1 <- NULL
+    output$table2 <- NULL
+    output$table3 <- NULL
+    output$table4 <- NULL
+
+    return(NULL)
+
+}
+
+renderConditionsTable <- function(tables) {
+
+    for (i in 1:length(tables)) {
+        output[[paste0("table", i)]] <- tables[[i]]
+    }
+
+    return(NULL)
+
+}
+
 renderSpectralPlots <- function() {
   
   # Delete all previous Tabs
@@ -88,8 +109,8 @@ observeEvent(input$FLf,{
 
   reactives$data_loaded             <- FALSE
   reactives$full_spectra            <- FALSE
-  
-  output$table1 <- output$table2 <- output$table3 <- output$table4 <- NULL
+
+  resetConditionsTable()
   
   withBusyIndicatorServer("Go",{
     
@@ -203,10 +224,7 @@ observeEvent(input$FLf,{
       tables <- get_renderRHandsontable_list(conditions,
                                              reactives$global_n_rows_conditions_table)
       
-      output$table4 <- tables[[4]]
-      output$table3 <- tables[[3]]
-      output$table2 <- tables[[2]]
-      output$table1 <- tables[[1]]
+      renderConditionsTable(tables)
       
       min_temp <- round(min(dsf$temps) - 273.15) # To degree celsius
       max_temp <- round(max(dsf$temps) - 273.15) # To degree celsius
@@ -247,10 +265,8 @@ observeEvent(input$layout_file$datapath,{
     dsf$conditions_original <- conditions[1:tot_cond]
     tables <- get_renderRHandsontable_list(conditions,reactives$global_n_rows_conditions_table)
     
-    output$table4 <- tables[[4]]
-    output$table3 <- tables[[3]]
-    output$table2 <- tables[[2]]
-    output$table1 <- tables[[1]]
+    renderConditionsTable(tables)
+
   }
   
 })
@@ -258,15 +274,13 @@ observeEvent(input$layout_file$datapath,{
 observeEvent(input$sort_conditions,{
   req(input$table1)
   
-  output$table1 <- output$table2 <- output$table3 <- output$table4 <- NULL
+  resetConditionsTable()
+
   dsf$sort_by_conditions_name(input$sort_conditions)
   tables <- get_renderRHandsontable_list(dsf$conditions_original,
                                          reactives$global_n_rows_conditions_table)
   
-  output$table4 <- tables[[4]]
-  output$table3 <- tables[[3]]
-  output$table2 <- tables[[2]]
-  output$table1 <- tables[[1]]
+  renderConditionsTable(tables)
   
 })
 
@@ -281,6 +295,7 @@ modify_fluo_temp_cond <- reactive({
   conditions_vector      <- as.character(condition_include_list$conditions_vector)
   include_vector         <- as.logical(condition_include_list$include_vector)
   series_vector          <- condition_include_list$series_vector
+  color_vector           <- as.character(condition_include_list$color_vector)
   
   dsf$set_signal(input$which)
   
@@ -303,10 +318,12 @@ modify_fluo_temp_cond <- reactive({
 
   # ... use only the conditions selected by the user ...
   dsf$conditions         <- conditions_vector[include_vector]
+  dsf$colors             <- color_vector[include_vector]
 
   # Convert to list if we have a string (only one condition)
   if (length(dsf$conditions) == 1) {
       dsf$conditions <- list(dsf$conditions)
+      dsf$colors     <- list(dsf$colors)
   }
 
   # Return NULL if no conditions are selected
@@ -337,9 +354,15 @@ output$signal <- renderPlotly({
                          dsf$temps)
   
   if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,dsf$signal_type, 
+    p <- plot_fluo_signal(fluo_m,dsf$colors,dsf$signal_type,
                           input$plot_width, input$plot_height, 
-                          input$plot_type,input$plot_font_size,input$plot_axis_size)
+                          input$plot_type,input$plot_font_size,input$plot_axis_size,
+                          show_x_grid=input$show_x_grid,
+                          show_y_grid=input$show_y_grid,
+                          show_axis_lines=input$show_axis_lines,
+                          tickwidth=input$plot_tickwidth,
+                          ticklen=input$plot_ticklen,
+                          line_width=input$plot_line_width)
     return(p)
   }
   return(NULL)
@@ -362,9 +385,15 @@ output$signal_der1 <- renderPlotly({
   fluo_m <- make_df4plot(dsf$derivative,dsf$conditions,dsf$temps)
 
   if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,"First derivative",
+    p <- plot_fluo_signal(fluo_m,dsf$colors,"First derivative",
                           input$plot_width, input$plot_height, 
-                          input$plot_type,input$plot_font_size,input$plot_axis_size)
+                          input$plot_type,input$plot_font_size,input$plot_axis_size,
+                          show_x_grid=input$show_x_grid,
+                          show_y_grid=input$show_y_grid,
+                          show_axis_lines=input$show_axis_lines,
+                          tickwidth=input$plot_tickwidth,
+                          ticklen=input$plot_ticklen,
+                          line_width=input$plot_line_width)
     return(p)
   }
   return(NULL)
@@ -385,9 +414,15 @@ output$signal_der2 <- renderPlotly({
   fluo_m <- make_df4plot(dsf$derivative2,dsf$conditions,dsf$temps)
   
   if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,"Second derivative",
+    p <- plot_fluo_signal(fluo_m,dsf$colors,"Second derivative",
                           input$plot_width, input$plot_height, 
-                          input$plot_type,input$plot_font_size,input$plot_axis_size)
+                          input$plot_type,input$plot_font_size,input$plot_axis_size,
+                          show_x_grid=input$show_x_grid,
+                          show_y_grid=input$show_y_grid,
+                          show_axis_lines=input$show_axis_lines,
+                          tickwidth=input$plot_tickwidth,
+                          ticklen=input$plot_ticklen,
+                          line_width=input$plot_line_width)
     return(p)
   }
   return(NULL)
@@ -793,4 +828,3 @@ output$results_plot <- renderPlotly({
   return(plot)
   
 })
-

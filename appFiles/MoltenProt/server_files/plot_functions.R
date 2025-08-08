@@ -8,28 +8,70 @@ config_figure <- function(fig,plot_type,plot_width,plot_height) {
   
 }
 
-## Plot fluorescence signal versus temperature (color by condition)
-## fluo_m is a 3 column dataframe: temp, fluo and cond 
+## Plot fluorescence signal versus temperature
+## fluo_m is a 3 column dataframe: temp, fluo, and Condition
+# colors is a vector with the colors for each condition
 
-plot_fluo_signal <- function(fluo_m,y_label, plot_width, plot_height, plot_type, 
-                             legend_text_size,axis_size) {
-  
+plot_fluo_signal <- function(fluo_m,colors,y_label, plot_width, plot_height, plot_type,
+                             legend_text_size,axis_size,
+                             show_x_grid=TRUE,
+                             show_y_grid=TRUE,
+                             show_axis_lines=TRUE,
+                             tickwidth=2,
+                             ticklen=8,
+                             line_width=2) {
   # Avoid duplicate names
   fluo_m <- avoid_positions_with_the_same_name_in_df(fluo_m)
   fluo_m$temp <- fluo_m$temp - 273.15 # To celsius 
-  
-  x <- list(title = "Temperature (°C)",titlefont = list(size = axis_size), tickfont = list(size = axis_size))
-  y <- list(title = y_label,titlefont = list(size = axis_size), tickfont = list(size = axis_size))
-  
-  fig <- plot_ly(data = fluo_m, x = ~temp, y = ~fluo,color=~Condition,
-                 type = 'scatter', mode = 'lines')
-  
+
+  x <- list(
+    title = "Temperature (°C)",
+    titlefont = list(size = axis_size),
+    tickfont = list(size = axis_size),
+    showgrid = show_x_grid,
+    showline = show_axis_lines,
+    zeroline = FALSE,
+    ticks = "outside",
+    tickwidth = tickwidth*show_axis_lines,
+    ticklen = ticklen*show_axis_lines,
+    automargin = TRUE
+    )
+
+  y <- list(
+    title = y_label,
+    titlefont = list(size = axis_size),
+    tickfont = list(size = axis_size),
+    showgrid = show_y_grid,
+    showline = show_axis_lines,
+    zeroline = FALSE,
+    ticks = "outside",
+    tickwidth = tickwidth*show_axis_lines,
+    ticklen = ticklen*show_axis_lines,
+    automargin = TRUE
+    )
+
+
+  fig <- plot_ly()
+
+
+  # Iterate over the conditions
+  unq_conditions <- unique(fluo_m$Condition)
+
+  i <- 1
+  for (condition in unq_conditions) {
+    fig <- fig %>% add_trace(data = fluo_m %>% filter(Condition == condition),
+                        x = ~temp, y = ~fluo, type = 'scatter', mode = 'lines',
+                        name = condition, color = I(colors[i]),
+                        line = list(width = line_width)
+                        )
+    i <- i + 1
+  }
+
   fig <- fig %>% layout(xaxis = x, yaxis = y,font="Roboto")
-  
   fig <- config_figure(fig,plot_type,plot_width,plot_height)
   fig <- fig %>% layout(showlegend = TRUE, legend = list(font = list(size = legend_text_size)))
-                    
-  return(fig ) 
+
+  return(fig )
 }
 
 #plot_spectra <- function(signal_data_dictionary,temp_data_dictionary,

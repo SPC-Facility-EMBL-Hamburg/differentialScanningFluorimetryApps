@@ -5,18 +5,35 @@ count_folders <- function(dir) { return(length(list.files(dir))) }
 
 getFileNameExtension <- function (fn) {
   # remove a path
-  splitted    <- strsplit(x=fn, split='/')[[1]]   
+  splitted    <- strsplit(x=fn, split='/')[[1]]
   # or use .Platform$file.sep in stead of '/'
   fn          <- splitted [length(splitted)]
   ext         <- ''
   splitted    <- strsplit(x=fn, split='\\.')[[1]]
   l           <-length (splitted)
-  if (l > 1 && sum(splitted[1:(l-1)] != ''))  ext <-splitted [l] 
-  # the extention must be the suffix of a non-empty name    
+  if (l > 1 && sum(splitted[1:(l-1)] != ''))  ext <-splitted [l]
+  # the extention must be the suffix of a non-empty name
   return(ext)
 }
 
-## Get include and conditions vectors from capillary versus condition tables 
+## Get color palette
+get_colors <- function(n) {
+
+    if (n <= 9) {
+      return(global_palette_9[1:n])
+    } else if (n <= 40) {
+      return(global_palette_40[1:n])
+    } else if (n <= 96) {
+      return(global_palette_96[1:n])
+    } else if (n <= 364) {
+      return(global_palette_364[1:n])
+    } else {
+      return(rep(global_palette_364,10)[1:n])
+    }
+}
+
+
+## Get include and conditions vectors from capillary versus condition tables
 
 get_include_vector <- function(table1,table2,table3,table4,
                                tot_cond,row_per_table,maxConditions) {
@@ -24,17 +41,19 @@ get_include_vector <- function(table1,table2,table3,table4,
   if (tot_cond <= (maxConditions-row_per_table*1)) {table4 <- NULL}
   if (tot_cond <= (maxConditions-row_per_table*2)) {table3 <- NULL}
   if (tot_cond <= (maxConditions-row_per_table*3)) {table2 <- NULL}
-  
-  DF1 <- hot_to_r(table1) 
+
+  DF1 <- hot_to_r(table1)
   include_vector    <- DF1$Include
   conditions_vector <- DF1$Condition
   series_vector     <- DF1$Series
-  
+  color_vector      <- DF1$Color
+
   if (!(is.null(table2))) {
-    DF2 <- hot_to_r(table2) 
+    DF2 <- hot_to_r(table2)
     include_vector    <- c(include_vector,DF2$Include)
     conditions_vector <- c(conditions_vector,DF2$Condition)
     series_vector     <- c(series_vector,DF2$Series)
+    color_vector      <- c(color_vector,DF2$Color)
   }
   
   if (!(is.null(table3))) {
@@ -42,6 +61,7 @@ get_include_vector <- function(table1,table2,table3,table4,
     include_vector    <- c(include_vector,DF3$Include)
     conditions_vector <- c(conditions_vector,DF3$Condition)
     series_vector     <- c(series_vector,DF3$Series)
+    color_vector      <- c(color_vector,DF3$Color)
   }
   
   if (!(is.null(table4))) {
@@ -49,10 +69,14 @@ get_include_vector <- function(table1,table2,table3,table4,
     include_vector    <- c(include_vector,DF4$Include)
     conditions_vector <- c(conditions_vector,DF4$Condition)
     series_vector     <- c(series_vector,DF4$Series)
+    color_vector      <- c(color_vector,DF4$Color)
   }
   
-  return(list("include_vector"=include_vector,"conditions_vector"=conditions_vector,
-              "series_vector"=series_vector))
+  return(list(
+    "include_vector"=include_vector,
+    "conditions_vector"=conditions_vector,
+    "series_vector"=series_vector,
+    "color_vector"=color_vector))
 }
 
 ## Constraint the median filter value between 0 and 6
@@ -135,7 +159,7 @@ get_merged_signal_dsf <- function(dsf_objects,signal_type) {
   for (dsf_ob in dsf_objects) {
     dsf_ob$set_signal(signal_type)
   }
-  
+
   left_bound   <- max(sapply(dsf_objects, function(x) min(x$temps)))
   right_bound  <- min(sapply(dsf_objects, function(x) max(x$temps)))
   
@@ -185,72 +209,169 @@ get_merged_signal_dsf <- function(dsf_objects,signal_type) {
   fluo                <- as.matrix(ref_df[,-c(1)])
   colnames(fluo) <- NULL
   
-  return(list("temp"=temps,"signal_type"=signal_type,"signal"=fluo,
-              "conditions"=conditions,"conditions_ori"=conditions_original))
+  return(
+
+    list(
+        "temp"=temps,
+        "signal_type"=signal_type,
+        "signal"=fluo,
+        "conditions"=conditions,
+        "conditions_ori"=conditions_original
+    )
+
+  )
+}
+
+## Get the 4 Tables data that will store the conditions names, series and include information
+get_table_data <- function(conditions,n_rows_conditions_table) {
+
+  data_lst <- list()
+
+  total_cond <- length(conditions)
+  d1max      <- min(n_rows_conditions_table,total_cond)
+
+  colors <- get_colors(total_cond)
+
+  data1 <- data.frame(Condition=as.character(conditions[1:d1max]),
+                      Series=as.character(rep("A",d1max)),
+                      Include=as.logical(rep(TRUE,d1max)),
+                      Color=as.character(colors[1:d1max])
+                      )
+
+  data_lst[[1]] <- data1
+
+  if (total_cond > n_rows_conditions_table ) {
+
+    d2max <- min(n_rows_conditions_table*2,total_cond)
+    nreps <- d2max - n_rows_conditions_table
+
+    data2 <- data.frame(
+                        Condition=as.character(conditions[(n_rows_conditions_table+1):d2max]),
+                        Series=as.character(rep("A",nreps)),
+                        Include=as.logical(rep(TRUE,nreps)),
+                        Color=as.character(colors[(n_rows_conditions_table+1):d2max])
+                        )
+
+    data_lst[[2]] <- data2
+
+  }
+
+  if (total_cond > n_rows_conditions_table*2 ) {
+
+    d3max <- min(n_rows_conditions_table*3,total_cond)
+    nreps <- d3max - (n_rows_conditions_table*2)
+
+    data3 <- data.frame(
+                        Condition=as.character(conditions[(n_rows_conditions_table*2+1):d3max]),
+                        Series=as.character(rep("A",nreps)),
+                        Include= as.logical(rep(TRUE,nreps)),
+                        Color=as.character(colors[(n_rows_conditions_table*2+1):d3max])
+                        )
+
+    data_lst[[3]] <- data3
+
+  }
+
+  if (total_cond > n_rows_conditions_table*3 ) {
+
+    d4max <- min(n_rows_conditions_table*4,total_cond)
+    nreps <- d4max - (n_rows_conditions_table*3)
+
+    data4 <- data.frame(
+                        Condition=as.character(conditions[(n_rows_conditions_table*3+1):d4max]),
+                        Series=as.character(rep("A",nreps)),
+                        Include= as.logical(rep(TRUE,nreps)),
+                        Color=as.character(colors[(n_rows_conditions_table*3+1):d4max])
+                        )
+
+    data_lst[[4]] <- data4
+
+  }
+
+  return(data_lst)
 }
 
 ## Get the 4 renderRHandsontable Tables
 get_renderRHandsontable_list <- function(conditions,n_rows_conditions_table) {
-  
-  table2 <- table3 <- table4 <- NULL
 
-  total_cond <- length(conditions)
-  d1max      <- min(n_rows_conditions_table,total_cond)
-  
-  data1 <- data.frame(Condition=as.character(conditions[1:d1max]),
-                      Series=as.character(rep("A",d1max)),
-                      Include=as.logical(rep(TRUE,d1max)))
-  
-  table1 <- renderRHandsontable({
-    rhandsontable(data1,maxRows=n_rows_conditions_table,rowHeaders=F)   %>% 
-      hot_col(c(1),allowInvalid = TRUE) 
-    
-  })
-  
-  if (total_cond > n_rows_conditions_table ) {
-    
-    d2max <- min(n_rows_conditions_table*2,total_cond)
-    data2 <- data.frame(Condition=as.character(conditions[(n_rows_conditions_table+1):d2max]),
-                        Series=as.character(rep("A",d2max-n_rows_conditions_table)),
-                        Include=as.logical(rep(TRUE,d2max-n_rows_conditions_table)))
-    
-    table2 <- renderRHandsontable({
-      rhandsontable(data2,maxRows=n_rows_conditions_table,rowHeaders=F)  %>% 
-        hot_col(c(1),allowInvalid = TRUE)
-      
-    })
-  } 
-  
-  if (total_cond > n_rows_conditions_table*2 ) {
-    
-    d3max <- min(n_rows_conditions_table*3,total_cond)
-    data3 <- data.frame(Condition=as.character(conditions[(n_rows_conditions_table*2+1):d3max]),
-                        Series=as.character(rep("A",d3max-(n_rows_conditions_table*2))),
-                        Include= as.logical(rep(TRUE,d3max-(n_rows_conditions_table*2))))
-    
-    table3 <- renderRHandsontable({
-      rhandsontable(data3,maxRows=n_rows_conditions_table,rowHeaders=F)  %>% 
-        hot_col(c(1),allowInvalid = TRUE) 
-      
-    })
-  } 
-  
-  if (total_cond > n_rows_conditions_table*3 ) {
-    
-    d4max <- min(n_rows_conditions_table*4,total_cond)
-    data4 <- data.frame(Condition=as.character(conditions[(n_rows_conditions_table*3+1):d4max]),
-                        Series=as.character(rep("A",d4max-(n_rows_conditions_table*3))),
-                        Include= as.logical(rep(TRUE,d4max-(n_rows_conditions_table*3))))
-    
-    table4 <- renderRHandsontable({
-      rhandsontable(data4,maxRows=n_rows_conditions_table,rowHeaders=F)  %>% 
-        hot_col(c(1),allowInvalid = TRUE) 
-      
-    })
-  } 
-  
-  return(list("table1"=table1,"table2"=table2,"table3"=table3,"table4"=table4))
+    tables <- list()
+
+    tables_data <- get_table_data(conditions,n_rows_conditions_table)
+
+    df_1 <- tables_data[[1]]
+    color_cells_1 <- data.frame(col=4,row=1:nrow(df_1))
+
+    # DO NOT USE A FOR LOOP HERE
+
+    tables[[1]] <- renderRHandsontable({
+        rhandsontable(tables_data[[1]],
+            rowHeaders = NULL,
+            col_highlight = color_cells_1$col - 1,
+            row_highlight = color_cells_1$row - 1,
+            maxRows=n_rows_conditions_table
+        ) %>%
+        hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
+        hot_col(c(2,4),renderer = myrenderer) %>%
+        hot_col(c(3),renderer = myrendererBoolean)
+
+        })
+
+    if (length(tables_data) > 1) {
+        df_2 <- tables_data[[2]]
+        color_cells_2 <- data.frame(col=4,row=1:nrow(df_2))
+
+        tables[[2]] <- renderRHandsontable({
+            rhandsontable(tables_data[[2]],
+                rowHeaders = NULL,
+                col_highlight = color_cells_2$col - 1,
+                row_highlight = color_cells_2$row - 1,
+                maxRows=n_rows_conditions_table
+            ) %>%
+            hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
+            hot_col(c(2,4),renderer = myrenderer) %>%
+            hot_col(c(3),renderer = myrendererBoolean)
+        })
+    }
+
+    if (length(tables_data) > 2) {
+        df_3 <- tables_data[[3]]
+        color_cells_3 <- data.frame(col=4,row=1:nrow(df_3))
+
+        tables[[3]] <- renderRHandsontable({
+            rhandsontable(tables_data[[3]],
+                rowHeaders = NULL,
+                col_highlight = color_cells_3$col - 1,
+                row_highlight = color_cells_3$row - 1,
+                maxRows=n_rows_conditions_table
+            ) %>%
+            hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
+            hot_col(c(2,4),renderer = myrenderer) %>%
+            hot_col(c(3),renderer = myrendererBoolean)
+        })
+    }
+
+    if (length(tables_data) > 3) {
+        df_4 <- tables_data[[4]]
+        color_cells_4 <- data.frame(col=4,row=1:nrow(df_4))
+
+        tables[[4]] <- renderRHandsontable({
+            rhandsontable(tables_data[[4]],
+                rowHeaders = NULL,
+                col_highlight = color_cells_4$col - 1,
+                row_highlight = color_cells_4$row - 1,
+                maxRows=n_rows_conditions_table
+            ) %>%
+            hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
+            hot_col(c(2,4),renderer = myrenderer) %>%
+            hot_col(c(3),renderer = myrendererBoolean)
+        })
+    }
+
+    return(tables)
+
 }
+
+
 
 ## Divide each column of the fluorescence matrix by the median of the first 2 degrees
 normalize_matrix_by_initial_value <- function(fluo_matrix,temp_vector) {
@@ -266,24 +387,24 @@ normalize_matrix_by_initial_value <- function(fluo_matrix,temp_vector) {
 
 ## Normalize each column of the fluorescence matrix by the maximum and minimum value
 normalize_matrix_max_min <- function(fluo_matrix) {
-  
+
   max_values <- apply(fluo_matrix, 2, max)
   min_values <- apply(fluo_matrix, 2, min)
-  
+
   delta <- max_values - min_values
-  
+
   fluo_matrix_norm   <- t(t(fluo_matrix) - min_values)
   fluo_matrix_norm   <- t(t(fluo_matrix_norm) / delta)
-  
+
   return(fluo_matrix_norm)
 }
 
 ## Normalize each column of the fluorescence matrix such that the area under the curve is 1
 normalize_matrix_area <- function(fluo_matrix,temps) {
-  
+
   trapz      <- apply(fluo_matrix, 2, FUN = function(y) trapz(temps,y))
   fluo_matrix_norm   <- t(t(fluo_matrix) / trapz)
-  
+
   return(fluo_matrix_norm)
 }
 
@@ -302,4 +423,3 @@ normalize_fluo_matrix_by_option <- function(option,fluo,temps) {
   
   return(fluo)
 }
-
