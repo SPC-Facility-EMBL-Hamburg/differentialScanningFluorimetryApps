@@ -1,4 +1,4 @@
-tabBox(title = "", width = 10,id = "tabset1legend",
+tabBox(title = "", width = 12,id = "tabset1legend",
        tabPanel("Signal plot -  Figure caption", 
                 p(HTML("Suggestion 1 - Conditions screen of protein Y.
                        Fluorescence based melting curves were plotted 

@@ -1,4 +1,4 @@
-box(title = "Plot download options", width = 2, solidHeader = T, status = "primary", 
+box(title = "Plot download options", width = 12, solidHeader = T, status = "primary",
 
     conditionalPanel(condition = "input.show_plot_download_options_input",
 
@@ -52,7 +52,7 @@ box(title = "Plot download options", width = 2, solidHeader = T, status = "prima
         fluidRow(
 
             column(6, p(HTML("<b>Tick width</b>"),
-            numericInput('plot_tickwidth', NULL, 2, min = 1, max = 10))),
+            numericInput('plot_tickwidth', NULL, 1, min = 1, max = 10))),
 
             column(6, p(HTML("<b>Tick length</b>"),
             numericInput('plot_ticklen', NULL, 8, min = 1, max = 30)))
