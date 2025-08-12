@@ -38,7 +38,7 @@ plot_fluo_signal <- function(fluo_m,colors,y_label, plot_width, plot_height, plo
     )
 
   y <- list(
-    title = y_label,
+    title = list(text=y_label,standoff=10),
     titlefont = list(size = axis_size),
     tickfont = list(size = axis_size),
     showgrid = show_y_grid,

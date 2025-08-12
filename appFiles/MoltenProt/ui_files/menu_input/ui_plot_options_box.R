@@ -71,7 +71,10 @@ box(title = "Plot download options", width = 12, solidHeader = T, status = "prim
     fluidRow(
 
         column(6, p(HTML("<b>Show/Hide options</b>"),
-        checkboxInput("show_plot_download_options_input", "", FALSE)))
+        checkboxInput("show_plot_download_options_input", "", FALSE))),
+
+        column(6, p(HTML("<b>Show/Hide colors</b>"),
+        checkboxInput("show_colors_column", "", TRUE)))
 
     )
 

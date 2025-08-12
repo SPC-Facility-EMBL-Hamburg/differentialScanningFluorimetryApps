@@ -46,14 +46,22 @@ get_include_vector <- function(table1,table2,table3,table4,
   include_vector    <- DF1$Include
   conditions_vector <- DF1$Condition
   series_vector     <- DF1$Series
-  color_vector      <- DF1$Color
+
+  color_vector        <- NULL
+  color_given_by_user <- "Color" %in% colnames(DF1)
+
+  # Find if there is a column named "Color" in the first table
+  if (color_given_by_user) color_vector      <- DF1$Color
+
 
   if (!(is.null(table2))) {
     DF2 <- hot_to_r(table2)
     include_vector    <- c(include_vector,DF2$Include)
     conditions_vector <- c(conditions_vector,DF2$Condition)
     series_vector     <- c(series_vector,DF2$Series)
-    color_vector      <- c(color_vector,DF2$Color)
+
+    if (color_given_by_user) color_vector <- c(color_vector,DF2$Color)
+
   }
   
   if (!(is.null(table3))) {
@@ -61,7 +69,8 @@ get_include_vector <- function(table1,table2,table3,table4,
     include_vector    <- c(include_vector,DF3$Include)
     conditions_vector <- c(conditions_vector,DF3$Condition)
     series_vector     <- c(series_vector,DF3$Series)
-    color_vector      <- c(color_vector,DF3$Color)
+
+    if (color_given_by_user) color_vector <- c(color_vector,DF3$Color)
   }
   
   if (!(is.null(table4))) {
@@ -69,7 +78,8 @@ get_include_vector <- function(table1,table2,table3,table4,
     include_vector    <- c(include_vector,DF4$Include)
     conditions_vector <- c(conditions_vector,DF4$Condition)
     series_vector     <- c(series_vector,DF4$Series)
-    color_vector      <- c(color_vector,DF4$Color)
+
+    if (color_given_by_user) color_vector <- c(color_vector,DF4$Color)
   }
   
   return(list(
@@ -223,18 +233,31 @@ get_merged_signal_dsf <- function(dsf_objects,signal_type) {
 }
 
 ## Get the 4 Tables data that will store the conditions names, series and include information
-get_table_data <- function(conditions,n_rows_conditions_table) {
+get_table_data <- function(conditions, n_rows_conditions_table, colors=NULL, series=NULL, include=NULL) {
 
   data_lst <- list()
 
   total_cond <- length(conditions)
   d1max      <- min(n_rows_conditions_table,total_cond)
 
-  colors <- get_colors(total_cond)
+  # use default colors if not provided
+  if (is.null(colors)) {
+    colors <- get_colors(total_cond)
+  }
+
+  # use default series if not provided - all set to "A"
+  if (is.null(series)) {
+    series <- rep("A",total_cond)
+  }
+
+  # select all if not provided
+  if (is.null(include)) {
+    include <- rep(TRUE,total_cond)
+  }
 
   data1 <- data.frame(Condition=as.character(conditions[1:d1max]),
-                      Series=as.character(rep("A",d1max)),
-                      Include=as.logical(rep(TRUE,d1max)),
+                      Series=as.character(series[1:d1max]),
+                      Include=as.logical(include[1:d1max]),
                       Color=as.character(colors[1:d1max])
                       )
 
@@ -247,8 +270,8 @@ get_table_data <- function(conditions,n_rows_conditions_table) {
 
     data2 <- data.frame(
                         Condition=as.character(conditions[(n_rows_conditions_table+1):d2max]),
-                        Series=as.character(rep("A",nreps)),
-                        Include=as.logical(rep(TRUE,nreps)),
+                        Series=as.character(series[(n_rows_conditions_table+1):d2max]),
+                        Include=as.logical(include[(n_rows_conditions_table+1):d2max]),
                         Color=as.character(colors[(n_rows_conditions_table+1):d2max])
                         )
 
@@ -263,8 +286,8 @@ get_table_data <- function(conditions,n_rows_conditions_table) {
 
     data3 <- data.frame(
                         Condition=as.character(conditions[(n_rows_conditions_table*2+1):d3max]),
-                        Series=as.character(rep("A",nreps)),
-                        Include= as.logical(rep(TRUE,nreps)),
+                        Series=as.character(series[(n_rows_conditions_table*2+1):d3max]),
+                        Include=as.logical(include[(n_rows_conditions_table*2+1):d3max]),
                         Color=as.character(colors[(n_rows_conditions_table*2+1):d3max])
                         )
 
@@ -279,8 +302,8 @@ get_table_data <- function(conditions,n_rows_conditions_table) {
 
     data4 <- data.frame(
                         Condition=as.character(conditions[(n_rows_conditions_table*3+1):d4max]),
-                        Series=as.character(rep("A",nreps)),
-                        Include= as.logical(rep(TRUE,nreps)),
+                        Series=as.character(series[(n_rows_conditions_table*3+1):d4max]),
+                        Include=as.logical(include[(n_rows_conditions_table*3+1):d4max]),
                         Color=as.character(colors[(n_rows_conditions_table*3+1):d4max])
                         )
 
@@ -292,80 +315,50 @@ get_table_data <- function(conditions,n_rows_conditions_table) {
 }
 
 ## Get the 4 renderRHandsontable Tables
-get_renderRHandsontable_list <- function(conditions,n_rows_conditions_table) {
+get_renderRHandsontable_list <- function(
+    conditions,
+    n_rows_conditions_table,
+    colors=NULL,
+    series=NULL,
+    include=NULL,
+    hide_color_column=FALSE) {
 
-    tables <- list()
+    tables_data <- get_table_data(conditions,n_rows_conditions_table,colors,series,include)
 
-    tables_data <- get_table_data(conditions,n_rows_conditions_table)
+    tables <- lapply(seq_along(tables_data),function(i){
 
-    df_1 <- tables_data[[1]]
-    color_cells_1 <- data.frame(col=4,row=1:nrow(df_1))
+        df <- tables_data[[i]]
+        color_cells <- data.frame(col=4,row=1:nrow(df))
 
-    # DO NOT USE A FOR LOOP HERE
+        if (hide_color_column) {
 
-    tables[[1]] <- renderRHandsontable({
-        rhandsontable(tables_data[[1]],
-            rowHeaders = NULL,
-            col_highlight = color_cells_1$col - 1,
-            row_highlight = color_cells_1$row - 1,
-            maxRows=n_rows_conditions_table
-        ) %>%
-        hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
-        hot_col(c(2,4),renderer = myrenderer) %>%
-        hot_col(c(3),renderer = myrendererBoolean)
+            table <- renderRHandsontable({
+                rhandsontable(df[,1:3], # Remove the color column
+                    rowHeaders = NULL,
+                    maxRows=n_rows_conditions_table
+                ) %>%
+                hot_col(c(1),allowInvalid = TRUE)
+            })
 
-        })
+        } else {
 
-    if (length(tables_data) > 1) {
-        df_2 <- tables_data[[2]]
-        color_cells_2 <- data.frame(col=4,row=1:nrow(df_2))
+            table <- renderRHandsontable({
+                rhandsontable(df,
+                    rowHeaders = NULL,
+                    col_highlight = color_cells$col - 1,
+                    row_highlight = color_cells$row - 1,
+                    maxRows=n_rows_conditions_table
+                ) %>%
+                hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
+                hot_col(c(2,4),renderer = myrenderer) %>%
+                hot_col(c(3),renderer = myrendererBoolean)
+            })
 
-        tables[[2]] <- renderRHandsontable({
-            rhandsontable(tables_data[[2]],
-                rowHeaders = NULL,
-                col_highlight = color_cells_2$col - 1,
-                row_highlight = color_cells_2$row - 1,
-                maxRows=n_rows_conditions_table
-            ) %>%
-            hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
-            hot_col(c(2,4),renderer = myrenderer) %>%
-            hot_col(c(3),renderer = myrendererBoolean)
-        })
-    }
+        }
 
-    if (length(tables_data) > 2) {
-        df_3 <- tables_data[[3]]
-        color_cells_3 <- data.frame(col=4,row=1:nrow(df_3))
+        return(table)
 
-        tables[[3]] <- renderRHandsontable({
-            rhandsontable(tables_data[[3]],
-                rowHeaders = NULL,
-                col_highlight = color_cells_3$col - 1,
-                row_highlight = color_cells_3$row - 1,
-                maxRows=n_rows_conditions_table
-            ) %>%
-            hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
-            hot_col(c(2,4),renderer = myrenderer) %>%
-            hot_col(c(3),renderer = myrendererBoolean)
-        })
-    }
-
-    if (length(tables_data) > 3) {
-        df_4 <- tables_data[[4]]
-        color_cells_4 <- data.frame(col=4,row=1:nrow(df_4))
-
-        tables[[4]] <- renderRHandsontable({
-            rhandsontable(tables_data[[4]],
-                rowHeaders = NULL,
-                col_highlight = color_cells_4$col - 1,
-                row_highlight = color_cells_4$row - 1,
-                maxRows=n_rows_conditions_table
-            ) %>%
-            hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
-            hot_col(c(2,4),renderer = myrenderer) %>%
-            hot_col(c(3),renderer = myrendererBoolean)
-        })
-    }
+    })
 
     return(tables)
 

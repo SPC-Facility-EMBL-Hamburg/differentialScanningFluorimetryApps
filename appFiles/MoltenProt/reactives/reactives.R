@@ -35,9 +35,10 @@ resetConditionsTable <- function() {
 
 renderConditionsTable <- function(tables) {
 
-    for (i in 1:length(tables)) {
+    lapply(seq_along(tables), function(i) {
         output[[paste0("table", i)]] <- tables[[i]]
-    }
+        return(NULL)
+    })
 
     return(NULL)
 
@@ -60,7 +61,7 @@ renderSpectralPlots <- function() {
   
   tabPanelNames <- generate_tab_panels(nConditions)
   
-  # Create new Tabs
+  # Create new Tabs - do not use a for loop here, because it does not work
   lapply(tabPanelNames, function(sp){
     
     appendTab(inputId = "tabset1",
@@ -79,7 +80,8 @@ renderSpectralPlots <- function() {
                           input$sg_range[1],input$sg_range[2])
   
   maxPanels     <- length(tabPanelNames)
-  
+
+  # Use lapply over for loop to avoid only rendering the last plot
   lapply(0:(maxPanels-1), function (i) {
     
     tabPanelName <- tabPanelNames[i+1]
@@ -284,6 +286,44 @@ observeEvent(input$sort_conditions,{
   
 })
 
+observeEvent(input$show_colors_column,{
+
+    req(input$table1)
+
+    show_colors_column <- input$show_colors_column
+
+    nconditions <- length(dsf$conditions_original)
+
+    condition_include_list <- get_include_vector(
+        input$table1,input$table2,input$table3,input$table4,
+        nconditions,reactives$global_n_rows_conditions_table,
+        reactives$global_max_conditions)
+
+    conditions_vector      <- as.character(condition_include_list$conditions_vector)
+    include_vector         <- as.logical(condition_include_list$include_vector)
+    series_vector          <- as.character(condition_include_list$series_vector)
+
+    # If the colors are now set to be hidden, we obtain them from the Tables
+    if (!show_colors_column){
+        color_vector           <- as.character(condition_include_list$color_vector)
+    } else {
+    # If the colors are shown, we use the colors from the dsf object
+        color_vector           <- dsf$all_colors
+    }
+
+
+    tables <- get_renderRHandsontable_list(
+        conditions_vector,
+        reactives$global_n_rows_conditions_table,
+        colors=color_vector,
+        series=series_vector,
+        include=include_vector,
+        hide_color_column=!show_colors_column)
+
+    renderConditionsTable(tables)
+
+})
+
 modify_fluo_temp_cond <- reactive({
   
   nconditions <- length(dsf$conditions_original)
@@ -295,8 +335,9 @@ modify_fluo_temp_cond <- reactive({
   conditions_vector      <- as.character(condition_include_list$conditions_vector)
   include_vector         <- as.logical(condition_include_list$include_vector)
   series_vector          <- condition_include_list$series_vector
-  color_vector           <- as.character(condition_include_list$color_vector)
-  
+
+  color_vector <- condition_include_list$color_vector
+
   dsf$set_signal(input$which)
   
   # Get signal window range
@@ -318,7 +359,18 @@ modify_fluo_temp_cond <- reactive({
 
   # ... use only the conditions selected by the user ...
   dsf$conditions         <- conditions_vector[include_vector]
-  dsf$colors             <- color_vector[include_vector]
+
+  if (!is.null(color_vector)) {
+
+    # Set vector for all colors
+    dsf$all_colors <- color_vector
+
+    color_vector <- as.character(condition_include_list$color_vector)
+    dsf$colors   <- color_vector[include_vector]
+
+  } else {
+    dsf$colors <- dsf$all_colors[include_vector]
+  }
 
   # Convert to list if we have a string (only one condition)
   if (length(dsf$conditions) == 1) {
