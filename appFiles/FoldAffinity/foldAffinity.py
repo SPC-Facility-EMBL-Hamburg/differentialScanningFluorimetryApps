@@ -378,8 +378,6 @@ elements separated by semicolons.'}
 
     def load_panta_xlsx(self,pantaFile):
 
-        sheet_names   = get_sheet_names_of_xlsx(pantaFile)
-
         try:
 
             data          = pd.read_excel(pantaFile, "Data Export")
@@ -542,6 +540,163 @@ elements separated by semicolons.'}
 
         return None
 
+    def load_uncle_multi_channel(self,uncle_file):
+
+        """
+
+        Function to load the data from the UNCLE instrument
+
+        Below is an example of the data format:
+
+            Toms run.uni			Sample Name	1 mg/ml Protein
+	        Temp :25, Time:134.9	Temp :25.49, Time:185.4	Temp :25.99, Time:236.4	Temp :26.48, Time:286.2	Temp :27, Time:336.2	Temp :27.48, Time:386.3	Temp :27.98, Time:436.3	Temp :28.46, Time:486.1	Temp :29.02, Time:536.1	Temp :29.5, Time:586	Temp :30, Time:636.2	Temp :30.49, Time:686.2	Temp :31, Time:736.2	Temp :31.5, Time:786.2	Temp :32, Time:836.2	Temp :32.48, Time:886.2	Temp :33, Time:936.1	Temp :33.5, Time:986.2	Temp :34.01, Time:1036.2	Temp :34.49, Time:1086.1	Temp :35, Time:1136.9	Temp :35.5, Time:1187.1
+            Wavelength	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity
+
+            249.182266235352	22.384	22.417	22.45	22.406	22.373	22.362	22.373	22.439	22.384	22.406	22.417	22.406	22.45	22.439	22.483	22.461	22.428	22.395	22.417	22.439	22.439	22.373
+            249.664016723633	13.144	14.261	14.458	16.035	16.068	19.025	11.369	14.491	15.969	17.777	23.691	20.57	14.754	20.668	25.137	20.8	22.311	21.293	21.095	19.65	21.128	16.725
+
+        The line should be discarded
+        The second line contains the time and temperature data. We're interested only in the temperature data
+        The third line can be discarded
+        The fourth line is empty
+        The fifth line contains the first row of the signal data, with the wavelength data in the first column
+
+        The file is a xlsx file with as many sheets as channels
+
+        """
+
+        # Get the names of the sheets
+        sheet_names = get_sheet_names_of_xlsx(uncle_file)
+
+        temperature_fixed = np.arange(5, 110, 0.5)
+
+        wavelengths       = None
+        temperatures      = []
+        conditions        = []
+        signals           = []
+
+        # Loop through each sheet and read the data
+        for sheet_name in sheet_names:
+
+            try:
+
+                # Read the data from the sheet
+                data = pd.read_excel(uncle_file, sheet_name=sheet_name,
+                                     header=None,skiprows=0)
+
+                # Extract the sample name, from the first row, fitfh column
+                sample_name = data.iloc[0, 4]
+
+                # Remove the first row
+                data = data.iloc[1:, :]
+
+                # Extract the time/temperature data
+                temperature_data = data.iloc[0, 1:].values
+                # Select the temperature data
+                temperature_data = [x.split(',')[0] for x in temperature_data]
+                temperature_data = [x.split(':')[1] for x in temperature_data]
+                temperature_data = np.array(temperature_data,dtype=float)
+
+                # Check that we have temperature data
+                if len(temperature_data) < 10:
+                    continue
+
+                # Extract the signal data
+                # It contains one column per temperature and one row per wavelength
+                signal_data = np.array(data.iloc[3:, 1:].values,dtype=float)
+
+                # Check that we have non nan signal data
+                non_nas = np.logical_not(np.isnan(signal_data).any(axis=1))
+
+                if np.sum(non_nas) < 100:
+                    continue
+
+                # Assign the wavelength data if wavelengths is None
+                if wavelengths is None:
+                    wavelengths = np.round(
+                        np.array(data.iloc[3:, 0].values,dtype=float),
+                        decimals=1)
+
+                signals.append(signal_data)
+                temperatures.append(temperature_data)
+                conditions.append(sample_name)
+
+            except:
+
+                pass
+
+        # Now we interpolate the signal data to the given fixed temperature vector
+        # Iterate over the wavelengths
+        named_wls = [str(wl) + 'nm' for wl in wavelengths]
+
+        # We require one signal matrix per wavelength
+        # with one column per condition
+        for i in range(len(wavelengths)):
+
+            # Extract the signal data for the current wavelength
+            # signal_temp has one row per condition and one column per wavelength
+            signal_temp = np.array([signal[i,:] for signal in signals])
+
+            signal_interp = []
+
+            # Iterate over the conditions
+            for row in range(signal_temp.shape[0]):
+
+                # Extract the signal data for the current condition
+                y = signal_temp[row, :]
+
+                # Interpolate the signal data to the fixed temperature vector
+                y_interpolated = np.interp(
+                    temperature_fixed,
+                    temperatures[row], y,
+                    left=np.nan, right=np.nan)
+
+                # Store the interpolated signal data
+                signal_interp.append(y_interpolated)
+
+            # Convert signal_interp to a 2D array
+            # It should have one column per condition
+            fluo = np.array(signal_interp).T
+
+            non_nas = np.logical_not(np.isnan(fluo).any(axis=1))
+
+            wl                              = named_wls[i]
+            self.signal_data_dictionary[wl] = fluo[non_nas, :]
+            self.temp_data_dictionary[wl]   = temperature_fixed[non_nas]
+
+        # Try to add the ratio signal
+        try:
+
+            signal_name = 'Ratio 350nm/330nm'
+
+            diff_350 = np.abs(wavelengths - 350)
+            diff_330 = np.abs(wavelengths - 330)
+
+            # Check if we have wavelengthd data between 349 - 351 nm and between 329 - 331 nm.
+            if np.min(diff_350) < 1 and np.min(diff_330) < 1:
+                idx350 = np.argmin(diff_350)
+                idx330 = np.argmin(diff_330)
+
+                f350 = self.signal_data_dictionary[named_wls[idx350]]
+                f330 = self.signal_data_dictionary[named_wls[idx330]]
+
+                fRatio = f350 / f330
+
+                self.signal_data_dictionary[signal_name] = fRatio
+                self.temp_data_dictionary[signal_name] = self.temp_data_dictionary[named_wls[idx350]]
+
+                named_wls = [signal_name] + named_wls
+
+        except:
+
+            pass
+
+        self.signals = np.array([named_wls])
+
+        self.conditions_original = np.array(conditions)
+
+        return None
+
     def set_signal(self,which):
 
         """
@@ -690,7 +845,6 @@ elements separated by semicolons.'}
         # For now will stick to what was done in the original code
         folded_slope   = np.mean(old_params[4, :])
         unfolded_slope = np.mean(old_params[5, :])
-        last_temp = len(self.temps) - 1
         # Instead of looping through the datasets, we will concatenate all data
         temp_concat, fluo_concat = concatenate_fluorescence(self.temps, self.fluo)
 
@@ -754,7 +908,6 @@ elements separated by semicolons.'}
         # For the shared slopes we use the average
         folded_slope = np.mean(old_params[4, :])
         unfolded_slope = np.mean(old_params[5, :])
-        last_temp = len(self.temps) - 1
         # Instead of looping through the datasets, we will concatenate all data
         temp_concat, fluo_concat = concatenate_fluorescence(self.temps, self.fluo)
 
@@ -1039,3 +1192,11 @@ elements separated by semicolons.'}
         self.tms = fit_params[0]
         
         return fit_params, fit_errors, fit_melting
+
+folder = '/Users/oburastero/Desktop/arise/differentialScanningFluorimetryApps/appFiles/FoldAffinity/www'
+file = 'UNCLE_multi_channel.xlsx'
+import os
+file_path = os.path.join(folder, file)
+sheet_names = get_sheet_names_of_xlsx(file_path)
+
+print(sheet_names)

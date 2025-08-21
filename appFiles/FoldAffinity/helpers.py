@@ -30,6 +30,34 @@ def isBlank (myString):
 
     return not (myString and myString.strip()) 
 
+def file_is_of_type_uncle(xlsx_file):
+
+    """
+    Check if the file is an uncle file
+    """
+
+    try:
+
+        # Read the first sheet of the xlsx file
+        data = pd.read_excel(xlsx_file,skiprows=1,nrows=5,header=None)
+
+        # Extrac the first row
+        row = data.iloc[0,1:]
+
+        # concatenate the row into a string
+        row_str = ' '.join([str(x) for x in row])
+
+        # count the number of times we have word 'Time' and 'Temp'
+        count_time = row_str.count('Time')
+        count_temp = row_str.count('Temp')
+
+        if count_time > 20 and count_temp > 20 and count_temp == count_time:
+            return True
+        else:
+            return False
+    except:
+        return False
+
 def detect_txt_file_type(file):
 
     '''
