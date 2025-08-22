@@ -8,9 +8,27 @@ output$signal <- renderPlotly({
   fluo_m <- make_df4plot(dsf$fluo,dsf$concentrations,dsf$temps)
   if (!(is.null(fluo_m))) {
     return( plot_fluo_signal(
-      fluo_m,dsf$signal_type,input$plot_width, input$plot_height, 
-      input$plot_type,input$plot_axis_size)
+
+      fluo_m=fluo_m,
+      which=dsf$signal_type,
+      plot_width=input$plot_width,
+      plot_height=input$plot_height,
+      plot_type=input$plot_type,
+      legend_text_size=input$plot_legend_size,
+      axis_size=input$plot_axis_size,
+      show_x_grid=input$show_x_grid,
+      show_y_grid=input$show_y_grid,
+      show_axis_lines=input$show_axis_lines,
+      tickwidth=input$plot_tickwidth,
+      ticklen=input$plot_ticklen,
+      line_width=input$plot_line_width,
+      color_bar_length=input$color_bar_length,
+      color_bar_orientation=input$color_bar_orientation,
+      xLegend=input$x_legend_pos,
+      yLegend=input$y_legend_pos
+
       )
+    )
     }
   
   return(NULL)
@@ -26,9 +44,25 @@ output$first_der <- renderPlotly({
 
   if (!(is.null(fluo_m))) {
     return( plot_fluo_signal(
-      fluo_m,"First Derivative",input$plot_width, input$plot_height, 
-      input$plot_type,input$plot_axis_size) 
+      fluo_m=fluo_m,
+      which="First derivative",
+      plot_width=input$plot_width,
+      plot_height=input$plot_height,
+      plot_type=input$plot_type,
+      legend_text_size=input$plot_legend_size,
+      axis_size=input$plot_axis_size,
+      show_x_grid=input$show_x_grid,
+      show_y_grid=input$show_y_grid,
+      show_axis_lines=input$show_axis_lines,
+      tickwidth=input$plot_tickwidth,
+      ticklen=input$plot_ticklen,
+      line_width=input$plot_line_width,
+      color_bar_length=input$color_bar_length,
+      color_bar_orientation=input$color_bar_orientation,
+      xLegend=input$x_legend_pos,
+      yLegend=input$y_legend_pos
       )
+    )
     }
   
   return(NULL)
@@ -41,10 +75,21 @@ output$tm_vs_lig <- renderPlotly({
   req(input$table1)
   if (is.null(modify_fluo_temp_cond())) {return(NULL)}
   
-  p <- generate_der_plot(dsf$tmsFromDerivative,dsf$concentrations,
-                         input$plot_width, input$plot_height, 
-                         input$plot_type,input$plot_axis_size,
-                         input$logScaleType)
+  p <- generate_der_plot(
+    dsf$tmsFromDerivative,
+    dsf$concentrations,
+    plot_width=input$plot_width,
+    plot_height=input$plot_height,
+    plot_type=input$plot_type,
+    axis_size=input$plot_axis_size,
+    show_x_grid=input$show_x_grid,
+    show_y_grid=input$show_y_grid,
+    show_axis_lines=input$show_axis_lines,
+    tickwidth=input$plot_tickwidth,
+    ticklen=input$plot_ticklen,
+    marker_size=input$plot_marker_size,
+    log_scale_type=input$logScaleType)
+
   return(p)
   
 }
@@ -59,8 +104,20 @@ output$initialFluo_vs_lig <- renderPlotly({
   fluo_m <- make_df4plot(dsf$fluo,dsf$concentrations,dsf$temps)
   if (!(is.null(fluo_m))) {
     return( plot_initialFluo_signal(
-      fluo_m,dsf$signal_type,input$plot_width, input$plot_height, 
-      input$plot_type,input$plot_axis_size)
+      fluo_m = fluo_m,
+      which = dsf$signal_type,
+      plot_width = input$plot_width,
+      plot_height = input$plot_height,
+      plot_type = input$plot_type,
+      axis_size = input$plot_axis_size,
+      show_x_grid= input$show_x_grid,
+      show_y_grid= input$show_y_grid,
+      show_axis_lines = input$show_axis_lines,
+      tickwidth = input$plot_tickwidth,
+      ticklen = input$plot_ticklen,
+      marker_size = input$plot_marker_size,
+      log_scale_type = input$logScaleType
+      )
     )
   }
   
@@ -214,12 +271,23 @@ output$isf <- renderPlotly({
   
   req(ist_df_real()) # Check we have isothermal data
   
-  return( plot_isothermal_fitting_exp(
-    ist_df_real(),
-    input$plot_width_isf, input$plot_height_isf, 
-    input$plot_type_isf,input$plot_axis_size_isf,
-    input$logScaleType_isf) )
-  
+  return(
+    plot_isothermal_fitting_exp(
+      ist_df_real(),
+      plot_width = input$plot_width_isf,
+      plot_height = input$plot_height_isf,
+      plot_type = input$plot_type_isf,
+      axis_size = input$plot_axis_size_isf,
+      legend_size = input$plot_legend_size_isf,
+      show_x_grid = input$show_x_grid_isf,
+      show_y_grid = input$show_y_grid_isf,
+      show_axis_lines = input$show_axis_lines_isf,
+      tickwidth = input$plot_tickwidth_isf,
+      ticklen = input$plot_ticklen_isf,
+      marker_size = input$plot_marker_size_isf,
+      log_scale_type = input$logScaleType_isf
+    )
+  )
 })
 
 # Change plot accordingly - isothermal fit
@@ -230,10 +298,25 @@ observeEvent(input$btn_cal_fit_its,{
     
     req(ist_fit_data_pred()) # Check we have isothermal data
 
-    return( plot_isothermal_fitting(ist_fit_data_pred()$data_exp,ist_fit_data_pred()$data_pred,
-                                    input$plot_width_isf, input$plot_height_isf, 
-                                    input$plot_type_isf,input$plot_axis_size_isf,
-                                    input$logScaleType_isf) )
+    return(
+      plot_isothermal_fitting(
+        ist_fit_data_pred()$data_exp,
+        ist_fit_data_pred()$data_pred,
+        plot_width = input$plot_width_isf,
+        plot_height = input$plot_height_isf,
+        plot_type = input$plot_type_isf,
+        axis_size = input$plot_axis_size_isf,
+        legend_size = input$plot_legend_size_isf,
+        show_x_grid = input$show_x_grid_isf,
+        show_y_grid = input$show_y_grid_isf,
+        show_axis_lines = input$show_axis_lines_isf,
+        tickwidth = input$plot_tickwidth_isf,
+        ticklen = input$plot_ticklen_isf,
+        marker_size = input$plot_marker_size_isf,
+        line_width = input$plot_line_width_isf,
+        log_scale_type = input$logScaleType_isf
+      )
+    )
   })
     
 })
@@ -263,10 +346,23 @@ output$tm_shift_fitting <- renderPlotly({
   req(input$table1)
   if (is.null(modify_fluo_temp_cond())) {return(NULL)}
   
-  return(plot_tm_shift(dsf$concentrations,dsf$tmsFromDerivative,
-                       input$plot_width_tmShift, input$plot_height_tmShift, 
-                       input$plot_type_tmShift,  input$plot_axis_size_tmShift,
-                       input$logScaleType_tmShift))
+  return(
+    plot_tm_shift(
+      dsf$concentrations,
+      dsf$tmsFromDerivative,
+      plot_width=input$plot_width_tmShift,
+      plot_height=input$plot_height_tmShift,
+      plot_type=input$plot_type_tmShift,
+      axis_size=input$plot_axis_size_tmShift,
+      show_x_grid=input$show_x_grid_tmShift,
+      show_y_grid=input$show_y_grid_tmShift,
+      show_axis_lines=input$show_axis_lines_tmShift,
+      tickwidth=input$plot_tickwidth_tmShift,
+      ticklen=input$plot_ticklen_tmShift,
+      marker_size=input$plot_marker_size_tmShift,
+      log_scale_type=input$logScaleType_tmShift
+    )
+  )
   
 })
 
@@ -283,12 +379,27 @@ observeEvent(input$btn_cal_tm_fit,{
     } 
     
     # Check that the user has pressed the fitting button more than 0 times
-    p <- plot_tm_shift_fit(dsf$concentrations,dsf$tmsFromDerivative,
-                           tm_fit_data()$df_pred,tm_fit_data()$fit_info,
-                           asymmetricCI95,
-                           input$plot_width_tmShift, input$plot_height_tmShift, 
-                           input$plot_type_tmShift,  input$plot_axis_size_tmShift,
-                           input$logScaleType_tmShift)
+    p <- plot_tm_shift_fit(
+      dsf$concentrations,
+      dsf$tmsFromDerivative,
+      tm_fit_data()$df_pred,
+      tm_fit_data()$fit_info,
+      asymmetricCI95,
+      plot_width = input$plot_width_tmShift,
+      plot_height = input$plot_height_tmShift,
+      plot_type = input$plot_type_tmShift,
+      axis_size = input$plot_axis_size_tmShift,
+      legend_size = input$plot_legend_size_tmShift,
+      show_x_grid = input$show_x_grid_tmShift,
+      show_y_grid = input$show_y_grid_tmShift,
+      show_axis_lines = input$show_axis_lines_tmShift,
+      tickwidth = input$plot_tickwidth_tmShift,
+      ticklen = input$plot_ticklen_tmShift,
+      marker_size = input$plot_marker_size_tmShift,
+      line_width = input$plot_line_width_tmShift,
+      log_scale_type = input$logScaleType_tmShift
+    )
+
     return( p )
   })
     

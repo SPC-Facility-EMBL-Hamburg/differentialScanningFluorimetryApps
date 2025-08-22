@@ -1013,7 +1013,7 @@ elements separated by semicolons.'}
             if model_type == "Dimerization":
                 fit_func = calculate_fitted_isothermal_simple_dim()
                 params, pcov = curve_fit(fit_func, concs_temp, fu, max_nfev=5E3, method='trf',
-                    p0=[start_Ku, start_Kdim], bounds=((0, 0), (np.inf, np.inf)))    
+                    p0=[start_Ku, 1], bounds=((0, 0), (np.inf, np.inf)))    
 
             if model_type == "Two_Sites_One_Kd":
                 fit_func = calculate_fitted_isothermal_2kds_simple2(self.pconc)
@@ -1192,11 +1192,3 @@ elements separated by semicolons.'}
         self.tms = fit_params[0]
         
         return fit_params, fit_errors, fit_melting
-
-folder = '/Users/oburastero/Desktop/arise/differentialScanningFluorimetryApps/appFiles/FoldAffinity/www'
-file = 'UNCLE_multi_channel.xlsx'
-import os
-file_path = os.path.join(folder, file)
-sheet_names = get_sheet_names_of_xlsx(file_path)
-
-print(sheet_names)

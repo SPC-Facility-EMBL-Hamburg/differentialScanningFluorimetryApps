@@ -53,7 +53,6 @@ plot_fluo_signal <- function(fluo_m,colors,y_label, plot_width, plot_height, plo
 
   fig <- plot_ly()
 
-
   # Iterate over the conditions
   unq_conditions <- unique(fluo_m$Condition)
 

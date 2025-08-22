@@ -139,8 +139,8 @@ class DSF_molten_prot_fit:
 
             # Reduce data so we can plot and fit the data faster.
             while len(temp) > 700:
-            	fluo = fluo[::2]
-            	temp = temp[::2]
+                fluo = fluo[::2]
+                temp = temp[::2]
 
             self.signal_data_dictionary[signal]   = fluo
             self.temp_data_dictionary[signal]     = temp
@@ -1379,93 +1379,6 @@ class DSF_molten_prot_fit:
        
         return None
 
-    # NOT FINISHED!!!!
-    def EquilibriumFourStateDimer(self,t1min,t1max,t2min,t2max,t3min,t3max,fit_algorithm="trf"):
-
-        """
-
-        In this model, the protein is assumed to be in either the native homodimeric state (N2), a non-native dimeric state (I2), 
-        a non-native monomeric state (I), or an unfolded monomeric state (U). Reference: https://pubs.acs.org/doi/10.1021/bi0110387
-        
-        Input
-
-        t1min and t1max are the max and min accepted values for the parameter T1. (N2 ⇆ I2)
-        t2min and t2max are the max and min accepted values for the parameter T2. (I2 ⇆ I)
-        t3min and t3max are the max and min accepted values for the parameter T3. (2I ⇆ 2U)
-
-        Result - we perform the fitting and assign the values to 
-
-        self.model_name,            self.params_name,               self.fitted_conditions_indexes  
-        self.params_all,            self.errors_abs_all,            self.errors_percentage_all      
-        self.fluo_predictions_all,  self.std_error_estimate_all,    self.parameters_far_from_bounds 
-
-        """
-
-        params_name = ['kN', 'bN', 'kU', 'bU', 'kI2','kI', 'dHm1', 'T1', 'dHm2', 'T2','dHm3', 'T3']
-
-        self.initialize_model("EquilibriumFourStateDimer",params_name)
-
-        def model(T, kN, bN, kU, bU, kI2,kI, dHm1, T1, dHm2, T2,dHm3, T3):
-
-
-            dg1 = dHm1*(1/T - 1/T1)
-            dg2 = dHm2*(1/T - 1/T2)
-            dg3 = dHm3*(1/T - 1/T3)
-
-            K1 = np.exp(-dg1/R_gas_constant*T)
-            K2 = np.exp(-dg2/R_gas_constant*T)
-            K3 = np.exp(-dg3/R_gas_constant*T)
-
-            K123 = K1*K2*K3
-
-            fraction_u = -K123*(1+K3) + np.sqrt((K123**2)*((1+K3)**2)+8*Pt*(1+K1)*(K123*K3) / 4*Pt*(1+K1))
-
-            fraction_i  = fraction_u           / K3
-            fraction_i2 = (fraction_i**2)*Pt*2 / K2
-            fraction_n2 = fraction_i2          / K1
-
-            signal_u    = (kU  * T + bU) * fraction_u
-            signal_i    = (kI  * T)      * fraction_i
-            signal_i2   = (kI2 * T)      * fraction_i2
-            signal_n2   = (kN  * T + bN) * fraction_n2
-
-            return signal_u + signal_i + signal_i2 + signal_n2
-
-        init_dH = 60000
-        init_KI = 10
-
-        low_bounds        = []
-        high_bounds       = []
-        initial_estimates = []
-
-        temp1_init = (t1min + t1max) / 2
-        temp2_init = (t2min + t2max) / 2
-        temp3_init = (t3min + t3max) / 2
-
-        for index in range(self.fluo.shape[1]):
-
-            p0 = (self.kNs[index], self.bNs[index], self.kUs[index], self.bUs[index],init_KI, init_dH, temp1_init, init_dH, temp2_init)
-
-            low_bound     =  [0.3*x if x>0 else 1.7*x for x in p0[:-5]] 
-            low_bound    +=  [0,0,t1min,0,t2min]
-
-            high_bound    = [1.7*x if x>0 else 0.3*x for x in p0[:-5]]  
-            high_bound   += [100,3140098,t1max,3140098,t2max] 
-
-            initial_estimates.append(p0)
-            low_bounds.append(low_bound)
-            high_bounds.append(high_bound)
-
-        self.fit_model_and_fill_params_and_errors(model,initial_estimates,low_bounds,high_bounds,fit_algorithm)
-
-        dHm1_all,      Tm1_all     = [p[5] for p in self.params_all],     [p[6] for p in self.params_all]
-        dHms1_sd_all,  Tm1_sd_all  = [p[5] for p in self.errors_abs_all], [p[6] for p in self.errors_abs_all]
-        dHm2_all,      Tm2_all     = [p[7] for p in self.params_all],     [p[8] for p in self.params_all]
-
-        self.T_onset      = get_EquilibriumTwoState_model_Tons(dHm1_all,Tm1_all,dHms1_sd_all,Tm1_sd_all)
-        self.dG_comb_std  = get_EquilibriumThreeState_model_dG_comb_std(dHm1_all,Tm1_all,dHm2_all,Tm2_all)
-       
-        return None
 
     def EmpiricalTwoState(self,fit_algorithm="trf",onset_threshold=0.01):
 

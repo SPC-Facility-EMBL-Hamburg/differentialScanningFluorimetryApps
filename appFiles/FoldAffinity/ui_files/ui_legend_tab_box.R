@@ -1,4 +1,4 @@
-tabBox(title = "", width = 10,id = "tabset1legend",
+tabBox(title = "", width = 12,id = "tabset1legend",
        tabPanel("Signal plot -  Figure caption", 
                 p(HTML("Suggestion 1 - Protein Y stability induced by ligand X binding. 
                        Fluorescence-based melting curves of protein Y at different concentrations of

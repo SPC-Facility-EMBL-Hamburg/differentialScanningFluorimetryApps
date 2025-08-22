@@ -27,10 +27,15 @@ global_plot_columns <- 4
 global_plot_rows    <- 4
 
 # viridis color palette
-global_colors_palette_signal <- c("#440154","#471063","#481d6f","#472a7a",
-                                  "#414487","#3c4f8a","#375a8c",
-                                  "#32648e","#2a788e","#26828e",
-                                  "#228b8d","#1f958b","#22a884",
-                                  "#2cb17e","#3bbb75","#4ec36b",
-                                  "#7ad151","#95d840","#b0dd2f","#cae11f",
-                                  "#fde725")
+global_colors_palette_signal <- c(
+  "#440154FF", "#46075BFF", "#470E61FF", "#481467FF", "#481A6CFF", "#482071FF",
+  "#482576FF", "#472A7AFF", "#462F7EFF", "#453581FF", "#443A83FF", "#424086FF",
+  "#404588FF", "#3E4989FF", "#3C4F8AFF", "#3A538BFF", "#38588CFF", "#365C8DFF",
+  "#34618DFF", "#32658EFF", "#30698EFF", "#2E6E8EFF", "#2C718EFF", "#2B758EFF",
+  "#297A8EFF", "#277E8EFF", "#26828EFF", "#24868EFF", "#238A8DFF", "#218E8DFF",
+  "#20928CFF", "#1F968BFF", "#1F9A8AFF", "#1F9F88FF", "#1FA287FF", "#21A685FF",
+  "#25AB82FF", "#28AE80FF", "#2DB27DFF", "#33B679FF", "#3ABA76FF", "#40BD72FF",
+  "#49C16DFF", "#52C569FF", "#5AC864FF", "#64CB5FFF", "#6ECE58FF", "#77D153FF",
+  "#82D34CFF", "#8DD645FF", "#98D83EFF", "#A3DA37FF", "#AFDD2FFF", "#BADE28FF",
+  "#C6E021FF", "#D1E21BFF", "#DDE318FF", "#E8E419FF", "#F3E61EFF", "#FDE725FF"
+)

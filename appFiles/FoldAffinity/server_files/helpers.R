@@ -92,7 +92,7 @@ get_color_from_conc <- function(conc,min_conc,max_conc) {
   maxL <- log10(max_conc)
   minL <- log10(min_conc)
   
-  log_seq <- seq(minL,maxL,length.out = 21)
+  log_seq <- seq(minL,maxL,length.out = length(global_colors_palette_signal))
   
   idx <- which.min(abs(log10(conc) - log_seq))
   
