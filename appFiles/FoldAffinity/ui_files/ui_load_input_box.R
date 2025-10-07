@@ -4,7 +4,7 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
       column(9, p(HTML("<b>1. nDSF or DSF file </b>"),
                    span(shiny::icon("info-circle"), id = "info_uu1-1"),
                    fileInput("FLf", NULL,accept = c(".xlsx",".zip",".xls",
-                                                    ".csv",".txt",'.json')),
+                                                    ".csv",".txt",'.json','.supr')),
                    tippy::tippy_this(elementId = "info_uu1-1",
                    tooltip = "Check the User Guide to understand the format of the input files. 
                    Hint: In the case of Prometheus, Panta, or Tycho spreadsheet files, you can combine them in a zip (.zip extension) 
@@ -28,7 +28,8 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
       
       column(4, p(HTML("<b><br>Signal</b>"),
                   selectInput("which", NULL,
-                              c("Ratio"="Ratio","350nm" = "350nm","330nm" = "330nm","Scattering"="Scattering")))),
+                              c("Ratio"="Ratio","350nm" = "350nm","330nm" = "330nm","Scattering"="Scattering"),
+                              selectize=FALSE))),
       
       column(12, p(HTML("<b>\nSignal Window Range (ºC)</b>"),
                    span(shiny::icon("info-circle"), id = "info_uu1-3"),

@@ -94,7 +94,9 @@ observeEvent(input$FLf,{
       }
       
       if (fileExtension == "csv") {dsf$load_csv_file(input$FLf$datapath)}
-      
+
+      if (fileExtension == "supr") {dsf$load_supr_dsf(input$FLf$datapath)}
+
       if (fileExtension == "xlsx" | fileExtension == "xls") {
         
         # Get file type: DSF or nDSF

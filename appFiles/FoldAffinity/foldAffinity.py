@@ -540,6 +540,144 @@ elements separated by semicolons.'}
 
         return None
 
+    def load_supr_dsf(self, JSON_file):
+
+        """
+        Import data from a JSON file exported from the SUPR DSF software.
+
+        """
+
+        # Read JSON data from a file
+        with open(JSON_file, "r") as file:
+            json_data = file.read()
+
+        # Parse JSON data into a dictionary
+        data_dict = json.loads(json_data)
+
+        samples_name = [item["SampleName"] for item in data_dict['Samples']]
+        samples_well = [item["WellLocations"] for item in data_dict['Samples']]
+
+        samples_name_simple = []
+        samples_well_simple = []
+
+        for sn, sw in zip(samples_name, samples_well):
+
+            if ',' in sw:
+
+                sw = sw.split(',')
+                sn = [sn for _ in sw]
+
+            else:
+
+                sw = [sw]
+                sn = [sn]
+
+            samples_name_simple += sn
+            samples_well_simple += sw
+
+        name_df = pd.DataFrame({
+            'well': samples_well_simple,
+            'name': samples_name_simple})
+
+        scans = [item["_scans"] for item in data_dict['Wells']]
+        n_scans = len(scans)
+
+        wavelengths = data_dict['Wavelengths']
+        wavelengths = np.round(wavelengths, decimals=1)
+        n_wavelengths = len(wavelengths)
+
+        temperatures = []
+        signals = []
+
+        temperature_fixed = np.arange(5, 110, 0.5)
+
+        well = [item["PhysicalLocation"] for item in data_dict['Wells']]
+
+        # Create a categorical data type with the custom order
+        cat_type = pd.CategoricalDtype(categories=well, ordered=True)
+
+        # Convert the column to the categorical data type
+        name_df['well'] = name_df['well'].astype(cat_type)
+
+        # Sort the DataFrame based on the custom order
+        name_df = name_df.sort_values(by='well')
+
+        conditions = name_df['name'].values.astype(str)
+
+        self.conditions_original = conditions
+
+        for i in range(n_scans):
+            temperatures.append([item['Temperature'] for item in scans[i]])
+            signals.append([item['Signal']           for item in scans[i]])
+
+        temperatures = np.array(temperatures).T
+        temperatures = np.round(temperatures, decimals=1)
+
+        signals = np.array(signals)
+
+        # Iterate over the wavelengths
+
+        named_wls = [str(wl) + ' nm' for wl in wavelengths]
+
+        for i in range(n_wavelengths):
+
+            signals_temp = signals[:, :, i].T
+            signal_interp = []
+
+            # Iterate over the columns of the arrays
+            for ii in range(n_scans):
+                x = temperatures[:, ii]
+                y = signals_temp[:, ii]
+
+                sorted_indices = np.argsort(x)
+                x = x[sorted_indices]
+                y = y[sorted_indices]
+
+                y_interpolated = np.interp(temperature_fixed, x, y, left=np.nan, right=np.nan)
+
+                # Linear interpolation every 0.5 degrees
+                signal_interp.append(y_interpolated)
+
+            fluo = np.array(signal_interp).T
+
+            non_nas = np.logical_not(np.isnan(fluo).any(axis=1))
+
+            wl = named_wls[i]
+            self.signal_data_dictionary[wl] = fluo[non_nas, :]
+            self.temp_data_dictionary[wl]   = temperature_fixed[non_nas]
+
+        # Add the ratio signal
+        try:
+
+            signal_name = 'Ratio (350 nm / 330 nm)'
+
+            diff_350 = np.abs(wavelengths - 350)
+            diff_330 = np.abs(wavelengths - 330)
+
+            # Check if we have wavelengthd data between 349 - 351 nm and between 329 - 331 nm.
+            if np.min(diff_350) < 1 and np.min(diff_330) < 1:
+
+                idx350 = np.argmin(diff_350)
+                idx330 = np.argmin(diff_330)
+
+                f350 = self.signal_data_dictionary[named_wls[idx350]]
+                f330 = self.signal_data_dictionary[named_wls[idx330]]
+
+                fRatio = f350 / f330
+
+                self.signal_data_dictionary[signal_name] = fRatio
+                self.temp_data_dictionary[signal_name]   = self.temp_data_dictionary[named_wls[idx350]]
+
+                named_wls = named_wls + [signal_name]
+
+        except:
+
+            pass
+
+        self.signals = np.array([named_wls])
+
+        return None
+
     def load_uncle_multi_channel(self,uncle_file):
 
         """
