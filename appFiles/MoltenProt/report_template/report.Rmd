@@ -67,6 +67,9 @@ fluo_m <- fluo_m %>% group_by(cond_) %>% nest()
 
 splitted_conditions <- split_vec(fluo_m$cond_,20)
 
+colors <- dsf$colors
+splitted_colors <- split_vec(colors,20)
+
 i <- 0
 plots <- list()
 for (split_cond in splitted_conditions) {
@@ -74,8 +77,15 @@ for (split_cond in splitted_conditions) {
   
   temp_df <- fluo_m %>% filter(cond_ %in% split_cond) %>% unnest(cols = c(data)) %>% ungroup()
 
-  p <- plot_fluo_signal(temp_df,dsf$signal_type,input$plot_width,input$plot_height,
-                        input$plot_type,input$plot_font_size,input$plot_axis_size)
+  p <- plot_fluo_signal(
+    temp_df,
+    splitted_colors[[i]],
+    input$which,
+    input$plot_width,
+    input$plot_height,
+    input$plot_type,
+    input$plot_font_size,
+    input$plot_axis_size)
 
   save_image(p, paste0(i,"signal.png"))
 
@@ -98,17 +108,26 @@ fluo_m <- make_df4plot(dsf$derivative,dsf$conditions,dsf$temps)
 fluo_m <- fluo_m %>% group_by(cond_) %>% nest()
 
 splitted_conditions <- split_vec(fluo_m$cond_,20)
+colors <- dsf$colors
+splitted_colors <- split_vec(colors,20)
 
 i <- 0
 for (split_cond in splitted_conditions) {
   i <- i+1
   
   temp_df <- fluo_m %>% filter(cond_ %in% split_cond) %>% unnest(cols = c(data)) %>% ungroup()
-  
-  p <- plot_fluo_signal(temp_df,"First derivative",input$plot_width,input$plot_height,
-                        input$plot_type,input$plot_font_size,input$plot_axis_size)
-  
-  
+
+  p <- plot_fluo_signal(
+    temp_df,
+    splitted_colors[[i]],
+    "First derivative",
+    input$plot_width,
+    input$plot_height,
+    input$plot_type,
+    input$plot_font_size,
+    input$plot_axis_size)
+
+
   save_image(p,paste0(i,"derivative.png"))
 }
 ```
