@@ -1,4 +1,18 @@
 
+# Reactive values to track available data
+reactives <- reactiveValues(
+  tm_fit_done = FALSE
+)
+
+# Allow the UI to know the values of these reactives
+output$tm_fit_done <- reactive({
+  return(reactives$tm_fit_done)
+})
+
+outputOptions(output, "tm_fit_done" , suspendWhenHidden = FALSE)
+
+# End of reactive values to track available data
+
 # Render signal plot
 output$signal <- renderPlotly({
   
@@ -336,7 +350,9 @@ tm_fit_data <- eventReactive(input$btn_cal_tm_fit, {
   dsf$tms_fit_info           <- as.list(fit_result$fit_info) # So it is JSNON serializable
   dsf$tms_fit_asymmetricCI95 <- fit_result$asymmetricCI95
   dsf$tms_fit_model          <- input$model_selected_tm_shift
-  
+
+  reactives$tm_fit_done <- TRUE
+    
   return(fit_result)
   
 })

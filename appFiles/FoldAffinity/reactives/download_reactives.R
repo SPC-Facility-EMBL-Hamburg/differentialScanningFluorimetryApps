@@ -155,3 +155,28 @@ output$download_session   <-   downloadHandler(
     
   })
 
+output$download_tm_fit_plot  <-   downloadHandler(
+  
+  filename = function() { paste0("tm_shift_fitting_data_",Sys.Date(),".csv")},
+  content  = function(file) {
+    
+    req(tm_fit_data())
+
+    concs <- dsf$concentrations
+    tms   <- dsf$tmsFromDerivative
+
+    pred_df <- tm_fit_data()$df_pred
+    
+    concs_pred <- pred_df$l_conc
+    tms_pred   <- pred_df$tms - 273.15 # K to C
+
+    df <- data.frame(
+      'Ligand_conc_M' = concs,
+      'Observed_Tm_(°C)' = tms,
+      'Fitted_Tm_(°C)' = tms_pred
+    )
+
+    write.csv(df,file,row.names = F,quote = F)
+
+  })
+

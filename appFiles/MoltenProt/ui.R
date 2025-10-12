@@ -73,6 +73,7 @@ shinyUI(dashboardPage(title = "MoltenProt",
                 source("ui_files/menu_export/ui_report.R",              local = TRUE)$value,
                 source("ui_files/menu_export/ui_fitting_information.R", local = TRUE)$value,
                 source("ui_files/menu_export/ui_plots_data.R",          local = TRUE)$value
+
                 
                 )),
                                   

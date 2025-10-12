@@ -682,6 +682,8 @@ plot_tm_shift <- function(
     y = ~tms,
     color = I("#00AFBB"),
     type = "scatter",
+    inherit = FALSE,
+    mode = "markers",
     marker = list(size = marker_size)
     ) %>%
     layout(xaxis = xaxis,yaxis=yaxis,showlegend=FALSE) %>%  
@@ -694,7 +696,7 @@ plot_tm_shift <- function(
     modeBarButtonsToRemove = list('sendDataToCloud',
                                   'hoverClosestCartesian','hoverCompareCartesian',
                                   'lasso2d','select2d','zoomIn2d','zoomOut2d',
-                                  'zoom2d','pan2d','autoScale2d','resetScale2d'))
+                                  'zoom2d','pan2d'))
   
   return(fig)
 }
@@ -773,6 +775,8 @@ plot_tm_shift_fit <- function(
       y = ~tms,
       type = 'scatter',
       mode = 'lines',
+      inherit = FALSE,
+      showlegend=FALSE,
       line = list(
         width=line_width,
         color = 'rgba(255,163,0,0.5)')) %>%

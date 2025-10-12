@@ -22,7 +22,9 @@ observeEvent(input$GoLoadExample,{
                                        "Nanomolar"="Nanomolar"))
   
   updateNumericInput(session, "protein_conc", value = 12)
-  
+
+  reactives$tm_fit_done <- FALSE
+
 })
 
 # load data into the DSF_binding() when the file is uploaded
@@ -231,6 +233,8 @@ observeEvent(input$FLf,{
       output$table2 <- tables[[2]]
       output$table1 <- tables[[1]]
       
+      reactives$tm_fit_done <- TRUE
+
     }})
 },priority = 10)
 

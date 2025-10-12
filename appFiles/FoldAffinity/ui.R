@@ -131,7 +131,13 @@ shinyUI(
           fluidRow(
             source("ui_files/ui_export_fitting_information.R",local = TRUE)$value,
             source("ui_files/ui_export_plots_data.R",local = TRUE)$value,
-            source("ui_files/ui_export_session.R",local = TRUE)$value
+            source("ui_files/ui_export_session.R",local = TRUE)$value,
+
+            conditionalPanel(
+              "output.tm_fit_done",
+              source("ui_files/ui_export_tm_fit.R", local = TRUE)$value
+            )
+
           )
         ),
         tabItem(tabName = "menu_user_guide", includeHTML("docs/user_guide.html")),
