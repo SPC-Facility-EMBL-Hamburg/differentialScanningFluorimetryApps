@@ -104,6 +104,9 @@ plot_whole_spectra <- function(df,font_size=18,min_wl=0,max_wl=800) {
     ylab('Fluorescence (AU)')+
     xlab('Wavelength (nm)')+
     scale_color_viridis_c(name='Temperature (°C)')
+
+  # Increase font size of axis titles
+
   
 }
 

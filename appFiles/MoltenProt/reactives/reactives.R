@@ -90,7 +90,7 @@ renderSpectralPlots <- function() {
     tog2$name <- factor(tog2$name,levels=unique(tog2$name))
 
     fig       <- plot_whole_spectra(
-        tog2,font_size = input$plot_font_size,
+        tog2,font_size = input$plot_axis_size,
         min_wl=input[['wl_range']][1],max_wl=input[['wl_range']][2])
     
     output[[tabPanelName]] <- renderPlot(fig)
@@ -198,6 +198,17 @@ observeEvent(input$FLf,{
           dsf$load_panta_xlsx(input$FLf$datapath)
         } else if ("Profiles_raw" %in% sheet_names) {
           dsf$load_tycho_xlsx(input$FLf$datapath)
+        } else if (file_is_of_type_aunty(input$FLf$datapath)) {
+
+          dsf$load_aunty_xlsx_file(input$FLf$datapath)
+                    # Update the wavelength range slider
+          updateSliderInput(session,"wl_range",NULL,
+                            min = dsf$min_wavelength, max = dsf$max_wavelength,
+                            value = c(dsf$min_wavelength,dsf$max_wavelength))
+
+          reactives$full_spectra   <- TRUE
+          reactives$include_vector <- rep(T,length(dsf$conditions))
+
         } else if (file_is_of_type_uncle(input$FLf$datapath)) {
           dsf$load_uncle_multi_channel(input$FLf$datapath)
 

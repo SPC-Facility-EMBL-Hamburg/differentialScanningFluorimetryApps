@@ -705,7 +705,7 @@ class DSF_molten_prot_fit:
         # Add the ratio signal
         try:
             
-            signal_name = 'Ratio 350nm/330nm'
+            signal_name = 'Ratio 350 nm / 330 nm'
 
             diff_350 = np.abs(wavelengths - 350)
             diff_330 = np.abs(wavelengths - 330)
@@ -868,7 +868,7 @@ class DSF_molten_prot_fit:
         # Try to add the ratio signal
         try:
 
-            signal_name = 'Ratio 350nm/330nm'
+            signal_name = 'Ratio 350 nm / 330 nm'
 
             diff_350 = np.abs(wavelengths - 350)
             diff_330 = np.abs(wavelengths - 330)
@@ -900,6 +900,115 @@ class DSF_molten_prot_fit:
         # Assign minimum and maximum wavelengths to self
         self.min_wavelength = np.floor(np.min(wavelengths))
         self.max_wavelength = np.ceil(np.max(wavelengths))
+
+        return None
+
+    def load_aunty_xlsx_file(self,file_path):
+
+        """
+        Import the AUNTY xlsx file which has the following format
+        Many sheets where the name is the condition name
+        The data is stored as follows:
+            The first column has the temperature data
+            Subsequent columns have the fluorescence data
+            The first row indicates the wavelength
+
+            EMPTY_CELL	wavelength
+            temperature	250	    250.490005493164	250.979995727539	251.470001220703
+            15.00	    98.22	58.0299987792969	49.9000015258789	93.1100006103516
+        """
+
+        sheet_names = get_sheet_names_of_xlsx(file_path)
+
+        # Create empty dictionaries to store the data
+        self.init_dictionary_to_store_fluo_temp_data()
+
+        signals      = []
+        conditions   = []
+        wavelengths  = None
+        temperature  = None
+
+        for sheet_name in sheet_names:
+
+            # Load the data
+            data = pd.read_excel(
+                file_path, sheet_name=sheet_name,
+                header=None,skiprows=0)
+
+            try:
+
+                wavelength_cell = data.iloc[0, 1]
+                temperature_cell = data.iloc[1, 0]
+                corner_cell = data.iloc[0, 0]
+
+                # Verify that the word wavelength is in the first row, second column
+                condition1 = isinstance(wavelength_cell, str) and 'wavelength' in wavelength_cell.lower()
+
+                # Verify that the word temperature is in the second row, first column
+                condition2 = isinstance(temperature_cell, str) and 'temperature' in temperature_cell.lower()
+
+                # Verify that the corner cell is empty (NaN)
+                condition3 = np.isnan(corner_cell)
+
+                if not (condition1 and condition2 and condition3):
+                    continue
+
+                fluorescence  = np.array(data.iloc[2:, 1:]).astype(float)
+                signals.append(fluorescence)
+
+                conditions.append(sheet_name)
+
+                if wavelengths is None:
+
+                    wavelengths    = np.round(np.array(data.iloc[1, 1:]).astype(float),2)
+                    min_wavelength = np.min(wavelengths)
+                    max_wavelength = np.max(wavelengths)
+
+                    self.min_wavelength = np.floor(min_wavelength)
+                    self.max_wavelength = np.ceil(max_wavelength)
+
+                if temperature is None:
+
+                    temperature   = np.round(np.array(data.iloc[2:, 0]).astype(float), 2)
+
+            except:
+
+                continue
+
+        # Now we have one signal matrix per condition, but we need one signal matrix per wavelength, with
+        # the conditions as columns
+        # Therefore, for each wavelength, we create one dataframe per condition and then merge them
+
+        named_wls = [str(wl) + ' nm' for wl in wavelengths]
+
+        for i, named_wl in enumerate(named_wls):
+
+            wl_signal = [x[:,i] for x in signals]
+
+            wl_signal_matrix = np.array(wl_signal).transpose().astype(float)
+
+            self.signal_data_dictionary[named_wl] = wl_signal_matrix
+            self.temp_data_dictionary[named_wl]   = temperature_to_kelvin(temperature)
+
+        # Now we try to add the ratio signal
+        ratio_signal_name = 'Ratio 350 nm / 330 nm'
+        idx350 = np.argmin(np.abs(wavelengths - 350))
+        idx330 = np.argmin(np.abs(wavelengths - 330))
+
+        f350 = self.signal_data_dictionary[named_wls[idx350]]
+        f330 = self.signal_data_dictionary[named_wls[idx330]]
+
+        fRatio = f350 / f330
+
+        self.signal_data_dictionary[ratio_signal_name] = fRatio
+        self.temp_data_dictionary[ratio_signal_name] = self.temp_data_dictionary[named_wls[idx350]]
+
+        self.conditions          = np.array(conditions)
+        self.conditions_original = np.array(conditions)
+
+        named_wls = [ratio_signal_name] + named_wls
+
+        self.signals = np.array([named_wls])
 
         return None
 
@@ -1569,3 +1678,4 @@ class DSF_molten_prot_fit:
         self.pkd = get_IrrevTwoState_pkd(Tf_all,Ea_all)
 
         return None
+

@@ -39,6 +39,72 @@ def get_sheet_names_of_xlsx(filepath):
  
     return sheetnames
 
+def file_is_of_type_aunty(file_path):
+
+    """
+    Detect if file is an AUNTY xlsx file, which has the following format:
+    Many sheets where the name is the condition name
+    The data is stored as follows:
+        The first column has the temperature data
+        Subsequent columns have the fluorescence data
+        The first row indicates the wavelength
+
+        EMPTY_CELL	wavelength
+        temperature	250	    250.490005493164	250.979995727539	251.470001220703
+        15.00	    98.22	58.0299987792969	49.9000015258789	93.1100006103516
+    """
+
+    if not (file_path.endswith('.xls') or file_path.endswith('.xlsx')):
+        return False
+
+    sheet_names = get_sheet_names_of_xlsx(file_path)
+
+    for sheet_name in sheet_names:
+
+        # Load the data
+        data = pd.read_excel(
+            file_path, sheet_name=sheet_name,
+            header=None,skiprows=0)
+
+        try:
+
+            wavelength_cell = data.iloc[0, 1]
+            temperature_cell = data.iloc[1, 0]
+            corner_cell = data.iloc[0, 0]
+
+            # Verify that the word wavelength is in the first row, second column
+            condition1 = isinstance(wavelength_cell, str) and 'wavelength' in wavelength_cell.lower()
+
+            # Verify that the word temperature is in the second row, first column
+            condition2 = isinstance(temperature_cell, str) and 'temperature' in temperature_cell.lower()
+
+            # Verify that the corner cell is empty (NaN)
+            condition3 = np.isnan(corner_cell)
+
+            if not (condition1 and condition2 and condition3):
+                continue
+
+            wavelenghts = np.array(data.iloc[1, 1:]).astype(float)
+
+            temperature = np.round(np.array(data.iloc[2:, 0]).astype(float),2)
+
+            # Verify we have more than 5 temperatures
+            condition4 = len(temperature) > 5
+
+            # Verify we have more than 5 wavelengths
+            condition5 = len(wavelenghts) > 5
+
+            if not (condition4 and condition5):
+                continue
+
+            return True
+
+        except:
+
+            return False
+
+    return False
+
 def file_is_of_type_uncle(xlsx_file):
 
     """
@@ -151,7 +217,7 @@ def subset_panta_data(data,columns_positions):
         mat   = dfs[0].to_numpy(dtype='float')
 
         fluo = mat[:,1:]         # You must use '1:' and not '1' to return a 2D array!
-        temp = mat[:,0] + 273.15 # To kelvin 
+        temp = temperature_to_kelvin(mat[:,0])
 
         return fluo, temp
 
@@ -163,8 +229,8 @@ def subset_panta_data(data,columns_positions):
         merged = pd.merge_asof(merged,df.dropna(),on="temperature", direction='nearest',allow_exact_matches=True)       
     
     fluo   = np.array(merged.iloc[:, 1:]).astype('float')
-    temp   = np.array(merged.iloc[:, 0]).astype('float') + 273.15 # To kelvin 
-
+    temp   = np.array(merged.iloc[:, 0]).astype('float')
+    temp   = temperature_to_kelvin(temp)
     # Reduce data so we can plot and fit the data faster.
 
     while len(temp) > 700:
@@ -216,7 +282,8 @@ def generateMergedQuantStudioDataFrame(data):
         merged = pd.merge_asof(merged,df.dropna(),on="temperature", direction='nearest',allow_exact_matches=True)       
 
     fluo   = np.array(merged.iloc[:, 1:]).astype('float')
-    temp   = np.array(merged.iloc[:, 0]).astype('float') + 273.15 # To kelvin 
+    temp   = np.array(merged.iloc[:, 0]).astype('float')
+    temp   = temperature_to_kelvin(temp)
 
     # Reduce data so we can plot and fit the data faster.
 
