@@ -1,15 +1,53 @@
 box(title = "2.2 Fitting options", width = 3, solidHeader = T, status = "primary", 
     fluidRow(
       
-      column(7, p(HTML("<b>Temperature range for baseline estimation</b>"),
+      column(8, p(HTML("<b>Temperature range for baseline estimation</b>"),
                   span(shiny::icon("info-circle"), id = "info_uu2-2"),
                   numericInput('temp_range_baseline_estimation',NULL, 8,min = 0, max = 20),
-                  tippy::tippy_this(elementId = "info_uu2-2",
-                                    tooltip = "Used to obtain initial guesses of the temperature dependence of the native and unfolded states fluorescence.
-                                    Hint: Select a temperature range of size 'n' taking into account that the first 'n' and last 'n' degrees are
-                                    going to be fitted to the equation of a line.",
-                                    placement = "right"))),
-      
+                  tippy::tippy_this(
+                    elementId = "info_uu2-2",
+                    tooltip = "Used to obtain initial guesses for the fluorescence dependence
+                     on temperature dependence of
+                    the native and unfolded states .",
+                    placement = "right")))
+    ),
+
+    fluidRow(
+
+        column(6,p(
+            HTML("<b>Signal dependence (native)</b>"),
+            span(shiny::icon("info-circle"), id = "info_uu-native_dependence"),
+            selectInput("native_dependence", NULL,choices =
+                c(
+                "quadratic"= "quadratic",
+                "linear"   = "linear",
+                "constant" = "constant"
+                )),
+            tippy::tippy_this(
+            elementId = "info_uu-native_dependence",
+            tooltip = "Set to linear if there's a linear dependence
+            between the signal and the temperature for the
+            native state.
+            Set to quadratic if there's a quadratic dependence.",placement = "right"))
+        ),
+
+        column(6,p(
+            HTML("<b>Signal dependence (unfolded)</b>"),
+            span(shiny::icon("info-circle"), id = "info_uu-unfolded_dependence"),
+            selectInput("unfolded_dependence", NULL,choices =
+                c(
+                "quadratic"= "quadratic",
+                "linear"   = "linear",
+                "constant" = "constant"
+                )),
+            tippy::tippy_this(
+            elementId = "info_uu-unfolded_dependence",
+            tooltip = "Set to linear if there's a linear dependence
+            between the signal and the temperature for the
+            unfolded state.
+            Set to quadratic if there's a quadratic dependence.",placement = "right"))
+        ),
+
       conditionalPanel(condition = "output.three_state_model_selected",
                        
          column(6, p(

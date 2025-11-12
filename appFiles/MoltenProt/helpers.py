@@ -1,18 +1,105 @@
 import numpy  as np
 import codecs
 import pandas as pd
-import codecs
 from openpyxl import load_workbook
 from xlrd     import open_workbook
 
 from collections import Counter
 
-def temperature_to_kelvin(temp):
+from scipy.optimize     import least_squares
+
+from constants import R_gas, temp_standard
+
+def fit_line_robust(x,y):
+
     """
-    Convert temperature to Kelvin
+    Fit a line to the data using robust fitting
+    Args:
+        x (np.ndarray): x data
+        y (np.ndarray): y data
+    Returns:
+        m (float): Slope of the fitted line
+        b (float): Intercept of the fitted line
     """
 
-    if (np.max(temp) < 273.15):
+    # convert x and y to numpy arrays, if they are lists
+    if isinstance(x, list):
+        x = np.array(x)
+    if isinstance(y, list):
+        y = np.array(y)
+
+    def linear_model(z,params):
+        slope,intercept = params
+        return slope * z + intercept
+
+    p0 = np.polyfit(x, y, 1)
+
+    # Perform robust fitting
+    res_robust = least_squares(
+        lambda params: linear_model(x, params) - y,
+        p0,
+        loss='soft_l1',
+        f_scale=0.1
+    )
+
+    m, b = res_robust.x
+
+    return m, b
+
+
+def fit_quadratic_robust(x,y):
+
+    """
+    Fit a quadratic equation to the data using robust fitting
+
+    Args:
+        x (np.ndarray): x data
+        y (np.ndarray): y data
+    Returns:
+        a (float): Quadratic coefficient of the fitted line
+        b (float): Linear coefficient of the fitted line
+        c (float): Constant coefficient of the fitted line
+
+    """
+
+    # convert x and y to numpy arrays, if they are lists
+    if isinstance(x, list):
+        x = np.array(x)
+    if isinstance(y, list):
+        y = np.array(y)
+
+    def model(x,params):
+        a,b,c = params
+        return a*np.square(x) + b*x + c
+
+    p0 = np.polyfit(x, y, 2)
+
+    # Perform robust fitting
+    res_robust = least_squares(
+        lambda params: model(x, params) - y,
+        p0,
+        loss='soft_l1',
+        f_scale=0.1
+    )
+
+    a,b,c = res_robust.x
+
+    return a,b,c
+
+def temperature_to_kelvin(temp):
+    """
+    Convert temperature to Kelvin.
+
+    Args:
+        temp (array-like or float): Temperature value(s). If values are below 273.15
+            they are assumed to be in Celsius and will be converted to Kelvin.
+
+    Returns:
+        numpy.ndarray or float: Temperatures in Kelvin with the same shape as the
+        input.
+    """
+
+    if np.max(temp) < 273.15:
         # If the temperature is in Celsius
         return temp + 273.15
     else:
@@ -22,36 +109,42 @@ def temperature_to_kelvin(temp):
 def get_sheet_names_of_xlsx(filepath):
 
     """
+    Get the sheet names of a .xls or .xlsx file without fully loading it.
 
-    Get the sheet names of a xls or xlsx file without loading it. 
-    The open_workbook function is used so we can handle the error "openpyxl does not support the old .xls file format" 
+    Args:
+        filepath (str): Path to the Excel file.
 
+    Returns:
+        list: List of sheet names (strings) found in the file.
     """
 
     try:
 
         wb = load_workbook(filepath, read_only=True, keep_links=False)
-        sheetnames = wb.sheetnames
+        sheet_names = wb.sheetnames
+
     except:
 
         xls = open_workbook(filepath, on_demand=True)
-        sheetnames =  xls.sheet_names()
+        sheet_names =  xls.sheet_names()
  
-    return sheetnames
+    return sheet_names
 
 def file_is_of_type_aunty(file_path):
 
     """
-    Detect if file is an AUNTY xlsx file, which has the following format:
-    Many sheets where the name is the condition name
-    The data is stored as follows:
-        The first column has the temperature data
-        Subsequent columns have the fluorescence data
-        The first row indicates the wavelength
+    Detect if file is an AUNTY xlsx file.
 
-        EMPTY_CELL	wavelength
-        temperature	250	    250.490005493164	250.979995727539	251.470001220703
-        15.00	    98.22	58.0299987792969	49.9000015258789	93.1100006103516
+    The AUNTY format contains multiple sheets where the first column is
+    temperatures and subsequent columns are fluorescence values. The first
+    row contains the word 'wavelength' and the second row contains the word
+    'temperature' in the first column.
+
+    Args:
+        file_path (str): Path to the .xls or .xlsx file to test.
+
+    Returns:
+        bool: True if the file matches the AUNTY format heuristic, False otherwise.
     """
 
     if not (file_path.endswith('.xls') or file_path.endswith('.xlsx')):
@@ -84,7 +177,7 @@ def file_is_of_type_aunty(file_path):
             if not (condition1 and condition2 and condition3):
                 continue
 
-            wavelenghts = np.array(data.iloc[1, 1:]).astype(float)
+            wavelengths = np.array(data.iloc[1, 1:]).astype(float)
 
             temperature = np.round(np.array(data.iloc[2:, 0]).astype(float),2)
 
@@ -92,7 +185,7 @@ def file_is_of_type_aunty(file_path):
             condition4 = len(temperature) > 5
 
             # Verify we have more than 5 wavelengths
-            condition5 = len(wavelenghts) > 5
+            condition5 = len(wavelengths) > 5
 
             if not (condition4 and condition5):
                 continue
@@ -108,7 +201,13 @@ def file_is_of_type_aunty(file_path):
 def file_is_of_type_uncle(xlsx_file):
 
     """
-    Check if the file is an uncle file
+    Check if the file is an UNCLE-format file.
+
+    Args:
+        xlsx_file (str): Path to the Excel file to check.
+
+    Returns:
+        bool: True if the heuristic suggests this is an UNCLE file, False otherwise.
     """
 
     try:
@@ -126,14 +225,21 @@ def file_is_of_type_uncle(xlsx_file):
         count_time = row_str.count('Time')
         count_temp = row_str.count('Temp')
 
-        if count_time > 20 and count_temp > 20 and count_temp == count_time:
-            return True
-        else:
-            return False
+        return count_time > 20 and count_temp == count_time
+
     except:
         return False
 
 def detect_encoding(file_path):
+    """
+    Detect file encoding from a small candidate list.
+
+    Args:
+        file_path (str): Path to the file to probe.
+
+    Returns:
+        str: Detected encoding name or the string "Unknown encoding" if none matched.
+    """
     encodings = ["utf-8", "latin1", "iso-8859-1", "cp1252"]
     for enc in encodings:
         try:
@@ -144,11 +250,34 @@ def detect_encoding(file_path):
             continue
     return "Unknown encoding"
 
-def isBlank (myString):
+def is_blank(string):
 
-    return (not (myString and myString.strip())) or myString == "nan" 
+    """
+    Test whether a string is blank/empty or the literal "nan".
+
+    Args:
+        string (str or None): Input string to test.
+
+    Returns:
+        bool: True if the input is None, empty, whitespace-only, or the string "nan".
+    """
+
+    return (not (string and string.strip())) or string == "nan"
 
 def find_indexes_of_non_signal_conditions(signal_data,conditions):
+
+    """
+    Find column indices that should be removed because they are non-signal.
+
+    Args:
+        signal_data (np.ndarray): 2D array (n_temps x n_conditions) of fluorescence
+            values where NaN indicates missing/empty measurements.
+        conditions (list or array-like): List of condition names (strings).
+
+    Returns:
+        list: Unique indices (ints) of columns that are non-signal (e.g. name
+        contains derivative or 'S.D.' or column is entirely NaN).
+    """
 
     # Find the indexes of conditions with derivative in it, or 'S.D.' in it
     idx_to_remove1 = [i for i, cond in enumerate(conditions) if 'derivative' in cond.lower() or 's.d.' in cond.lower()]
@@ -170,16 +299,14 @@ def find_indexes_of_non_signal_conditions(signal_data,conditions):
 def find_repeated_words(string_lst):
 
     """
-    Given a list of strings, find the repeated words in the list
+    Given a list of strings, find words that appear in every element (repeated).
 
     Args:
-
-        string_lst (lst): list of strings
+        string_lst (list of str): List of strings to analyse.
 
     Returns:
-
-        repeated_words (lst): list of repeated words
-
+        list: List of words (str) that appear at least as many times as the
+        number of elements in string_lst (i.e. repeated across entries).
     """
 
     # Repeated words
@@ -195,6 +322,17 @@ def find_repeated_words(string_lst):
 
 def remove_words_in_string(input_string,word_list):
 
+    """
+    Remove a list of words from an input string.
+
+    Args:
+        input_string (str): The input string.
+        word_list (list of str): Words to remove from the string.
+
+    Returns:
+        str: The filtered string with the specified words removed.
+    """
+
     # Split the string into words
     words = input_string.split()
 
@@ -207,6 +345,20 @@ def remove_words_in_string(input_string,word_list):
     return output_string
 
 def subset_panta_data(data,columns_positions):
+
+    """
+    Subset PANTA-style data by extracting temperature and signal columns.
+
+    Args:
+        data (pandas.DataFrame): DataFrame with PANTA-style layout.
+        columns_positions (list of int): Positions (1-based) identifying pairs of
+            columns [temperature_col, signal_col] for each capillary/condition.
+
+    Returns:
+        tuple: (fluo, temp)
+            fluo (np.ndarray): 2D array of fluorescence signals (n_temps x n_conditions).
+            temp (np.ndarray): 1D array of temperatures (converted to Kelvin).
+    """
 
     dfs    = [pd.DataFrame(np.array(data.iloc[:,[pos-1,pos]]),
         columns = ["temperature","signal"+str(i)]) for i,pos in enumerate(columns_positions)]
@@ -239,10 +391,16 @@ def subset_panta_data(data,columns_positions):
 
     return fluo, temp
 
-def getStartLineQuantStudioFile(file_name):
+def get_quantstudio_start_line(file_name):
 
     """
-    Returns the number of the first line not starting with "*" + 1
+    Returns the number of the first line not starting with "*" + 1 for QuantStudio files.
+
+    Args:
+        file_name (str): Path to the QuantStudio text file.
+
+    Returns:
+        int: Line index (1-based) of the first non-comment line.
     """
 
     with codecs.open(file_name, 'r', encoding='utf-8',errors='ignore') as rf:
@@ -254,9 +412,20 @@ def getStartLineQuantStudioFile(file_name):
                 start_row = i+1
                 break
 
-    return(start_row)
+    return start_row
 
-def generateQS3DataFrame(df):
+def generate_qs3_df(df):
+
+    """
+    Generate a simple two-column DataFrame (temperature, signal) from a QuantStudio block.
+
+    Args:
+        df (pandas.DataFrame): Input block-like DataFrame where temperature and signal
+            are in columns 3 and 4 (0-based indexing used here to match existing code).
+
+    Returns:
+        pandas.DataFrame: DataFrame with columns ["temperature", "signal"] sorted by temperature.
+    """
 
     df = pd.DataFrame(np.array(df.iloc[:,[3,4]]),
         columns = ["temperature","signal"],dtype=str)
@@ -269,9 +438,21 @@ def generateQS3DataFrame(df):
 
     return df
 
-def generateMergedQuantStudioDataFrame(data):
+def generate_merged_quantstudio_df(data):
 
-    dfs = [generateQS3DataFrame(x) for _, x in data.groupby(1)]
+    """
+    Merge multiple QuantStudio groups into temperature vector and fluorescence matrix.
+
+    Args:
+        data (pandas.DataFrame): Original QuantStudio DataFrame grouped by column 1.
+
+    Returns:
+        tuple: (fluo, temp)
+            fluo (np.ndarray): 2D float array of fluorescence (n_temps x n_conditions).
+            temp (np.ndarray): 1D float array of temperatures (in Kelvin).
+    """
+
+    dfs = [generate_qs3_df(x) for _, x in data.groupby(1)]
     dfs = [df.rename(columns={"signal": 'signal'+str(i)}) for i,df in enumerate(dfs)]
 
     # Combine dataframes so we can obtain a vector of temperatures and a matrix of fluorescence signal
@@ -287,16 +468,18 @@ def generateMergedQuantStudioDataFrame(data):
 
     # Reduce data so we can plot and fit the data faster.
 
-    nConditions = fluo.shape[1]
+    n_conditions = fluo.shape[1]
 
-    if nConditions > 192:
-        maxPoints = 150
-    elif nConditions > 96:
-        maxPoints = 300
+    if n_conditions > 192:
+        max_points = 150
+
+    elif n_conditions > 96:
+        max_points = 300
+
     else:
-        maxPoints = 700
+        max_points = 700
 
-    while len(temp) > maxPoints:
+    while len(temp) > max_points:
         fluo = fluo[::2]
         temp = temp[::2]
 
@@ -304,12 +487,15 @@ def generateMergedQuantStudioDataFrame(data):
 
 def detect_txt_file_type(file):
 
-    '''
+    """
+    Decide if a text file was generated by an Agilent MX3005P or a QuantStudio instrument.
 
-    Decide if the file was generated by an Agilent's MX3005P qPCR instrument or a 
-    QuantStudio qPCR instrument
+    Args:
+        file (str): Path to the text file to inspect.
 
-    '''
+    Returns:
+        str or None: 'MX3005P', 'QuantStudio', or None if undetermined.
+    """
 
     with codecs.open(file, 'r', encoding='utf-8',errors='ignore') as rf:
         ls       = rf.read().splitlines()
@@ -318,13 +504,23 @@ def detect_txt_file_type(file):
             if line.startswith('Segment') and 'Well' in line:
                 return 'MX3005P'
 
-            splittedLine = line.split()
-            if 'Well' in splittedLine and 'Target' in splittedLine and 'Reading' in splittedLine:
+            splitted_line = line.split()
+            if 'Well' in splitted_line and 'Target' in splitted_line and 'Reading' in splitted_line:
                 return 'QuantStudio'
 
     return None
 
 def load_layout(xls_file):
+
+    """
+    Load a layout Excel file and return a cleaned list of condition strings.
+
+    Args:
+        xls_file (str): Path to the Excel file containing layout information.
+
+    Returns:
+        numpy.ndarray: 1D array of cleaned condition strings (one per row).
+    """
 
     xls = pd.ExcelFile(xls_file)
     dat = pd.read_excel(xls)
@@ -344,75 +540,70 @@ def load_layout(xls_file):
 
 def filter_fluo_by_temp(np_fluo,np_temp,min_temp,max_temp):
 
-	"""
-	Filter the fluorescence matrix using a temperature range
+    """
+    Filter the fluorescence matrix using a temperature range.
 
-	Requires: 
-		
-		1) The fluorescence matrix 'np_fluo' of dimensions
-	n*m where n is the number of temperatures at which the fluorescence 
-	was measured and m the number of conditions  
-		2) The temperature vector 'np_temp' of length n.
-		3) The lower bound 'min_temp'
-		4) The upper bound 'max_temp'
+    Args:
+        np_fluo (np.ndarray): 2D array (n_temps x n_conditions) or 1D array of fluorescence.
+        np_temp (np.ndarray): 1D array of temperatures with length n_temps.
+        min_temp (float): Minimum temperature to keep (inclusive).
+        max_temp (float): Maximum temperature to keep (inclusive).
 
+    Returns:
+        np.ndarray: Filtered fluorescence matrix (rows where temperature within bounds).
+    """
 
-	Returns the filtered fluorescence matrix 
-	"""
+    shape = np_fluo.shape
+    # Convert 1D array to a 2D numpy array of n rows and 1 column
+    if len(shape) == 1:
+        np_fluo = np.reshape(np_fluo, (-1, 1))
 
-	shape  = np_fluo.shape
-	# Convert 1D array to a 2D numpy array of n rows and 1 column
-	if len(shape) == 1:
-		np_fluo = np.reshape(np_fluo, (-1, 1))
+    tot = np_fluo.shape[1]
 
-	tot = np_fluo.shape[1]
+    np_tog = np.column_stack((np_fluo, np_temp))
+    np_tog = np_tog[np_tog[:, tot] >= min_temp]
+    np_tog = np_tog[np_tog[:, tot] <= max_temp]
+    np_tog = np.delete(np_tog, tot, 1)
 
-	np_tog = np.column_stack((np_fluo, np_temp))
-	np_tog = np_tog[np_tog[:,tot ] >= min_temp]
-	np_tog = np_tog[np_tog[:,tot] <= max_temp]
-	np_tog = np.delete(np_tog, tot, 1)
+    return np_tog
 
-	return(np_tog)
 
 def filter_temp_by_temp(np_temp,min_temp,max_temp):
 
-	"""
-	Filter the temperature vector using a temperature range
+    """
+    Filter the temperature vector using a temperature range.
 
-	Requires: 
-		
-		1) The temperature vector 'np_temp' of length n.
-		2) The lower bound 'min_temp'
-		3) The upper bound 'max_temp'
+    Args:
+        np_temp (np.ndarray): 1D array of temperatures.
+        min_temp (float): Minimum temperature to keep (inclusive).
+        max_temp (float): Maximum temperature to keep (inclusive).
 
+    Returns:
+        np.ndarray: Filtered temperature vector.
+    """
 
-	Returns the filtered temperature vector 
-	"""
+    np_temp_filter = np_temp[np_temp >= min_temp]
+    np_temp_filter = np_temp_filter[np_temp_filter <= max_temp]
 
-	np_temp_filter = np_temp[np_temp >= min_temp]
-	np_temp_filter = np_temp_filter[np_temp_filter <= max_temp]
-
-	return(np_temp_filter)
+    return np_temp_filter
 
 
 def median_filter_from_fluo_and_temp_vectors(fluo_vec,temp_vec,rolling_window):
 
     """
 
-    Compute the median filter of the fluorescence vector using a temperature rolling window
+    Compute the median filter of the fluorescence vector using a temperature rolling window.
 
-    First, we convert the temperature into an integer vector and then 
-        into time variable to take advantage of pandas function 
-            rolling().median() 
+    The function converts temperatures to integer seconds (scaled) and uses a pandas
+    rolling median with a time-based window.
 
+    Args:
+        fluo_vec (array-like): 1D fluorescence values.
+        temp_vec (array-like): 1D temperature values (same length as fluo_vec).
+        rolling_window (float): Rolling window in Celsius degrees.
 
-	Requires: 
-
-		1) The fluorescence 1D vector 'fluo_vec'
-		2) The temperature  1D vector 'temp_vec'
-		3) The size of the rolling window in celsius 'rolling_window'
-
-	Returns the fluorescence vector passed through the median filter
+    Returns:
+        numpy.ndarray: 1D array with the median-filtered fluorescence values.
 
     """
 
@@ -430,41 +621,53 @@ def median_filter_from_fluo_and_temp_vectors(fluo_vec,temp_vec,rolling_window):
 
 def get_temp_at_maximum_of_derivative(temps,fluo_derivative):
 
-    tms_derivative = np.take(temps, np.argmax(fluo_derivative,axis=0)) 
+    """
+    Get temperature(s) corresponding to the maximum of the derivative for each column.
+
+    Args:
+        temps (array-like): 1D array of temperatures (length m).
+        fluo_derivative (np.ndarray): 2D array (m x n) of derivative values.
+
+    Returns:
+        numpy.ndarray: 1D array (length n) of temperatures at which derivative is maximal per column.
+    """
+
+    tms_derivative = np.take(temps, np.argmax(fluo_derivative,axis=0))
     return tms_derivative
 
 def get_temp_at_minimum_of_derivative(temps,fluo_derivative):
 
-    tms_derivative = np.take(temps, np.argmin(fluo_derivative,axis=0)) 
+    """
+    Get temperature(s) corresponding to the minimum of the derivative for each column.
+
+    Args:
+        temps (array-like): 1D array of temperatures (length m).
+        fluo_derivative (np.ndarray): 2D array (m x n) of derivative values.
+
+    Returns:
+        numpy.ndarray: 1D array (length n) of temperatures at which derivative is minimal per column.
+    """
+
+    tms_derivative = np.take(temps, np.argmin(fluo_derivative,axis=0))
     return tms_derivative
 
 def estimate_initial_tm_from_baseline_fitting(bUs,bNs,kNs,kUs,temps,fit_length,fluo_derivative):
 
 
     """
-    Use an heuristic algorithm to get an initial estimate of the Tms
+    Use a heuristic algorithm to get an initial estimate of the Tms.
 
-    Requires: 
+    Args:
+        bUs (array-like): Intercepts for unfolded baseline (length K).
+        bNs (array-like): Intercepts for native baseline (length K).
+        kNs (array-like): Slopes for native baseline (length K).
+        kUs (array-like): Slopes for unfolded baseline (length K).
+        temps (array-like): 1D temperature vector.
+        fit_length (float): Temperature range used in fitting baseline heuristics.
+        fluo_derivative (np.ndarray): 2D array (len(temps) x K) with derivative values.
 
-        The intercept of the baseline fitting for the native and unfolded states 
-            'bNs' 'bUs' (1D numpy arrays of length K where K is the number of conditions)
-
-        The slope of the baseline fitting for the native and unfolded states 
-            'kNs' 'kUs' (1D numpy arrays of length K where K is the number of conditions)
-        
-        The 1D temperature vector 
-            'temps'
-
-        A scalar 'fit_length' (The temperature range used to estimate 'bNs' 'bUs' 'kNs' 'kUs')
-    
-        The first derivative of the fluorescence 
-            'fluo_derivative' (numpy array of dimension m*n where m is the same dimension
-            as the temperature vector and n is the number of conditions)
-                
     Returns:
-
-        A 1D vector of Tms (numpy array of length K where K is the number of conditions)
-
+        numpy.ndarray: 1D array of estimated Tm values (length K).
     """
 
     dintersect = - (bUs - bNs) / (kNs - kUs)
@@ -497,97 +700,22 @@ def estimate_initial_tm_from_baseline_fitting(bUs,bNs,kNs,kUs,temps,fit_length,f
 
     return tms
 
-def check_good_parameters_estimation(params,low_bound,high_bound,params_name):
 
-    """
-        
-    Check that the estimated parameters are far from the bounds, 
-    if not there is a problem with the fitting.
-
-    For the first  4 params 'kN', 'bN', 'kU', 'bU' we will normalize low_bound - high_bound range to 0-1
-    and then verify that the parameters lie in the interval 0.02-0.98.
-        
-    """
-
-    low_bound  = np.array(low_bound)
-    high_bound = np.array(high_bound)
-    params     = np.array(params)
-
-    params_normalized = (params[:4] - low_bound[:4] ) / (high_bound[:4] - low_bound[:4])
-
-    lie_in_correct_interval   = np.logical_and(params_normalized < 0.98,
-        params_normalized > 0.02)
+def get_two_state_deltaG(dHms, tms, cp):
 
     """
 
-    For Tm or T1 and T2 and T_onset or T_onset1 and T_onset2  we will check that they are 1 degree from the boundaries
+    Obtain Gibbs free energy of unfolding at a standard temperature extrapolated using dCp.
 
-    """
+    Args:
+        dHms (array-like): Enthalpy changes at Tm (same shape as tms).
+        tms (array-like): Melting temperatures (Kelvin).
+        cp (float or array-like): Heat capacity change (dCp).
 
-    for temp_param_name in ["Tm","T1","T2","T_onset","T_onset1","T_onset2"]:
-
-        if temp_param_name in params_name:
-
-            position_of_tm = params_name.index(temp_param_name) 
-            tm             = params[position_of_tm]
-            tm_bound_low   = low_bound[position_of_tm]
-            tm_bound_up    = high_bound[position_of_tm]
-
-            lie_in_correct_interval = np.append(lie_in_correct_interval, np.array([tm > (tm_bound_low+1) and tm < (tm_bound_up-1)]))
-
-    """
-
-    For Tm or dHm, dHm1 and dHm2 we will check that they are between 2.5 and 750 kcal/mol. 10466 and 3098230 in Joules
-
-    """
-
-    for dh_param_name in ["dHm","dHm1","dHm2"]:
-
-        if dh_param_name in params_name:
-
-            position_of_dh = params_name.index(dh_param_name) 
-            dh             = params[position_of_dh]
-            lie_in_correct_interval = np.append(lie_in_correct_interval, np.array([dh > 10466 and dh < 3098230]))
-
-    """
-
-    For Ki we will check that it lies between 1e-3 and 1e3
-
-    """
-
-    if "Ki" in params_name:
-        position_of_ki = params_name.index("Ki") 
-        ki             = params[position_of_ki]
-        lie_in_correct_interval = np.append(lie_in_correct_interval, np.array([ki >= 0.001 and ki < 1000]))
-
-
-    return all(lie_in_correct_interval)
-
-def estimate_baseline_factor(kN_fit, bN_fit, kU_fit, bU_fit, Tm_fit,std_error_estimate):
-
-    """
-    Use the fluorescence dependence of the folded and unfolded states to estimate
-    the baseline separation factor
-    """
-
-    baseline_factor = 1 - 6 * std_error_estimate / abs(kU_fit*Tm_fit + \
-        bU_fit - (kN_fit * Tm_fit + bN_fit))
-
-    baseline_factor = np.round(baseline_factor,2)
-
-    return(baseline_factor)
-
-def get_EquilibriumTwoState_model_dGstd(dHms,tms,cp,temp_standard=298.15):
-
-
-    """
-
-    Obtain 'dG_std' - Gibbs free energy of unfolding at standard temperature (298 K), 
-        extrapolated using the values of dCp
-
-    dG_std is extrapolated to standard temperature using the model described in Becktel and Schellman, 1987
-    Tm is chosen as the reference temperature for equation (4), which also means that dS(Tm) = dH(Tm)/Tm
-
+    Returns:
+        tuple: (dG_std, dCp_component)
+            dG_std (numpy.ndarray): Gibbs free energy at temp_standard.
+            dCp_component (numpy.ndarray): The dCp contribution factor used in extrapolation.
     """
     dHms = np.array(dHms)
     tms  = np.array(tms)
@@ -600,40 +728,57 @@ def get_EquilibriumTwoState_model_dGstd(dHms,tms,cp,temp_standard=298.15):
 
     return dG_std, dCp_component
 
-def get_EquilibriumTwoState_model_Tons(dHms,tms,dHms_sd,tms_sd,onset_threshold=0.01,R_gas_constant=8.314):
+def get_two_state_tonset(dHms, tms, onset_threshold=0.01):
 
     """
 
-    Compute onset temperature (and stdev using error propagation) 
-        based on fitted dHm and Tm
-    
-    onset_threshold is the fraction unfolded that corresponds to onset of unfolded.
-        The default value means that (0.01 - 1% must be unfolded)
+    Compute onset temperature based on fitted dHm and Tm using an onset threshold.
 
+    Args:
+        dHms (array-like): Enthalpy changes at Tm (same shape as tms).
+        tms (array-like): Melting temperatures (Kelvin).
+        onset_threshold (float): Fraction unfolded at onset (default 0.01).
+
+    Returns:
+        numpy.ndarray: Estimated onset temperatures (same shape as tms).
     """
 
     dHms,    tms        = np.array(dHms),    np.array(tms) 
-    dHms_sd, tms_sd     = np.array(dHms_sd), np.array(tms_sd)
 
-    T_onset = 1 / (1 / tms - R_gas_constant / dHms * np.log(onset_threshold / (1 - onset_threshold))) 
+    T_onset = 1 / (1 / tms - R_gas / dHms * np.log(onset_threshold / (1 - onset_threshold)))
 
     return T_onset
 
-def get_EmpiricalTwoState_model_ranking(Tm,T_onset):
+def get_empirical_two_state_score(Tm, T_onset):
 
     """
 
-    Imagine a two dimensional space with coordinates 
-        x1 = Tmelting and 
-        x2 = Tonset (where 1% of the protein is unfolded)
+    Compute an empirical two-state quality score as Euclidean distance of (Tm, T_onset).
 
-    Return the distance from the origin (0,0) to the point (Tm,Tonset)
+    Args:
+        Tm (array-like): Melting temperatures (Kelvin or same units as T_onset).
+        T_onset (array-like): Onset temperatures (same shape as Tm).
 
+    Returns:
+        numpy.ndarray: Euclidean distance per element: sqrt(Tm**2 + T_onset**2).
     """
 
     return np.sqrt(np.array(Tm)**2 + np.array(T_onset)**2)
 
-def get_EquilibriumThreeState_model_dG_comb_std(dHm1_fit,T1_fit,dHm2_fit,T2_fit,temp_standard=298.15):
+def get_eq_three_state_combined_deltaG(dHm1_fit, T1_fit, dHm2_fit, T2_fit):
+
+    """
+    Compute combined deltaG for an equilibrium three-state model extrapolated to standard temperature.
+
+    Args:
+        dHm1_fit (float) : Enthalpy of first transition.
+        T1_fit   (float) : Transition temperature (Kelvin) of first transition.
+        dHm2_fit (float) : Enthalpy of second transition.
+        T2_fit   (float) : Transition temperature (Kelvin) of second transition.
+
+    Returns:
+        numpy.ndarray: Combined deltaG at temp_standard.
+    """
 
     dHm1_fit,   dHm2_fit    = np.array(dHm1_fit), np.array(dHm2_fit)
     T1_fit,     T2_fit      = np.array(T1_fit),   np.array(T2_fit)
@@ -642,12 +787,21 @@ def get_EquilibriumThreeState_model_dG_comb_std(dHm1_fit,T1_fit,dHm2_fit,T2_fit,
 
     return dG_comb_std
 
-def get_EmpiricalThreeState_model_T_eucl_comb(T_onset1_fit,T1_fit,T_onset2_fit,T2_fit):
+def get_empirical_three_state_score(T_onset1_fit, T1_fit, T_onset2_fit, T2_fit):
 
     """
+    Args:
+        T_onset1_fit (float): Onset temperature of first transition.
+        T1_fit (float): Transition temperature of first transition.
+        T_onset2_fit (float): Onset temperature of second transition.
+        T2_fit (float): Transition temperature of second transition.
 
-    Return the distance from the origin (0,0) to the point (T1_fit,Tonset1) +
-           the distance from the origin (0,0) to the point (T2_fit,Tonset2) 
+    Returns:
+        float: Distance metric
+
+    Notes:
+        The metric is the distance from the origin (0,0) to the point (T1_fit,Tonset1) +
+        the distance from the origin (0,0) to the point (T2_fit,Tonset2)
 
     """
 
@@ -658,18 +812,97 @@ def get_EmpiricalThreeState_model_T_eucl_comb(T_onset1_fit,T1_fit,T_onset2_fit,T
 
     return T_eucl_comb
 
-def arrhenius(T, Tf, Ea,R_gas_constant=8.314):
+def arrhenius(T, Tf, Ea):
     """
-    Arrhenius equiation: defines dependence of reaction rate constant k on temperature
-    In this version of the equation we use Tf (a temperature of k=1)
-    to get rid of instead of pre-exponential constant A
+    Arrhenius equation: dependence of reaction rate constant on temperature.
+
+    Args:
+        T (float or array-like): Temperature(s) at which to evaluate the function.
+        Tf (float or array-like): Reference temperature(s) where k = 1 in this parametrisation.
+        Ea (float or array-like): Activation energy (same units as R_gas*T).
+
+    Returns:
+        numpy.ndarray or float: exp(-Ea/R * (1/T - 1/Tf)).
     """
-    return np.exp(-Ea / R_gas_constant * (1 / T - 1 / Tf))
+    return np.exp(-Ea / R_gas * (1 / T - 1 / Tf))
 
-def get_IrrevTwoState_pkd(Tf, Ea,temp_standard=298.15):
+def get_irrev_two_state_pkd(Tf, Ea):
 
-	Tf = np.array(Tf)
-	Ea = np.array(Ea)
+    """
+    Compute irreversible two-state pKd-like value from Arrhenius parameters.
 
-	return -np.log10(arrhenius(temp_standard,Tf,Ea))
+    Args:
+        Tf (float or array-like): Reference temperature(s) for which k=1.
+        Ea (float or array-like): Activation energy (same shape as Tf).
 
+    Returns:
+        numpy.ndarray or float: -log10(k(temp_standard)) where k is computed from arrhenius().
+    """
+
+    Tf = np.array(Tf)
+    Ea = np.array(Ea)
+
+    return -np.log10(arrhenius(temp_standard, Tf, Ea))
+
+def get_barycenter(intensities,wavelengths):
+
+    """
+    Compute a (intensity-weighted) barycenter of wavelengths.
+
+    Args:
+        intensities (array-like): Intensity values (weights).
+        wavelengths (array-like): Wavelength values (same shape as intensities) or matrix.
+
+    Returns:
+        numpy.ndarray or float: Weighted barycenter value(s).
+    """
+
+    barycenter = np.sum(wavelengths * intensities) / np.sum(intensities)
+
+    return barycenter
+
+def detect_file_type(file):
+
+    file_type = None
+
+    if file.endswith(".txt"):
+
+        file_type = detect_txt_file_type(file)
+
+    if file.endswith(".csv"):
+
+        file_type = "csv"
+
+    if file.endswith(".supr"):
+
+        file_type = "supr"
+
+    if file.endswith(".xlsx") or file.endswith(".xls"):
+
+        sheet_names = get_sheet_names_of_xlsx(file)
+
+        if "RFU" in sheet_names:
+
+            file_type = "thermofluor"
+
+        elif "Data Export" in sheet_names:
+
+            file_type = "panta"
+
+        elif "Profiles_raw" in sheet_names:
+
+            file_type = "tycho"
+
+        elif file_is_of_type_aunty(file):
+
+            file_type = "aunty"
+
+        elif file_is_of_type_uncle(file):
+
+            file_type = "uncle"
+
+        else:
+
+            file_type = "prometheus"
+
+    return file_type

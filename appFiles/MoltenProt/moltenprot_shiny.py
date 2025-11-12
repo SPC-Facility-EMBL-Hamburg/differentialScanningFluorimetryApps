@@ -1,24 +1,52 @@
-#!/usr/bin/python3
 import json
 
 import pandas as pd
 import numpy  as np
 
 from scipy.signal     import savgol_filter
-from scipy.stats      import linregress
 
 from scipy.optimize   import curve_fit
 from scipy.integrate  import solve_ivp
 from natsort          import index_natsorted
 
 # Load custom helper functions
-from helpers                 import *
+from helpers import (
+    is_blank,
+    temperature_to_kelvin,
+    detect_encoding,
+    find_indexes_of_non_signal_conditions,
+    find_repeated_words,
+    remove_words_in_string,
+    get_quantstudio_start_line,
+    generate_merged_quantstudio_df,
+    subset_panta_data,
+    get_sheet_names_of_xlsx,
+    get_barycenter,
+    median_filter_from_fluo_and_temp_vectors,
+    filter_fluo_by_temp,
+    filter_temp_by_temp,
+    fit_line_robust,
+    fit_quadratic_robust,
+    get_temp_at_maximum_of_derivative,
+    get_temp_at_minimum_of_derivative,
+    get_two_state_deltaG,
+    get_two_state_tonset,
+    get_eq_three_state_combined_deltaG,
+    get_empirical_two_state_score,
+    get_empirical_three_state_score,
+    get_irrev_two_state_pkd
+)
 
-### Constants
-R_gas_constant = 8.314  # In J / ( Kelvin * mol )
-temp_standard  = 298.15 # In Kelvins, 25 degree Celsius
+from models import(
 
-class DSF_molten_prot_fit:
+    get_fit_fx_two_state_signal_fit,
+    get_fit_fx_three_state_signal_fit
+
+)
+
+from constants import R_gas, temp_standard
+
+class DsfFitter:
 
     """
     Class for nanoDSF protein stability studies
@@ -26,11 +54,11 @@ class DSF_molten_prot_fit:
     based on the work done by Vadim Kotov et al.
 
     If you use this script please cite:
-    
-		Kotov, Vadim, et al. "In‐depth interrogation of protein thermal unfolding data with MoltenProt." 
+
+		Kotov, Vadim, et al. "In‐depth interrogation of protein thermal unfolding data with MoltenProt."
 		Protein Science 30.1 (2021): 201-217.
 
-		Burastero, Osvaldo, et al. "eSPC: an online data-analysis platform for molecular biophysics." 
+		Burastero, Osvaldo, et al. "eSPC: an online data-analysis platform for molecular biophysics."
 		Acta Crystallographica Section D: Structural Biology 77.10 (2021).
 
     No warranty whatsoever
@@ -44,14 +72,164 @@ class DSF_molten_prot_fit:
 
     def __init__(self):
 
-        return None
+        """
+        We initialize all attributes with None.
+        """
+
+        # Dictionary containing the raw signal data - one key per signal type, such as 350 nm or 330 nm
+        self.signal_data_dictionary = None
+
+        # Dictionary containing the raw temperature data in Kelvin units - one key per signal type, such as 350 nm or 330 nm
+        self.temp_data_dictionary   = None
+
+        # List with the possible signals, matches the keys in self.signal_data_dictionary and self.temp_data_dictionary
+        self.signals = None
+
+        # List with the conditions names, can be modified
+        self.conditions = None
+
+        # List with the original conditions, read from the file
+        self.conditions_original = None
+
+        # List of colors for plotting, one per condition
+        self.all_colors = None
+
+        # List of colors for plotting, one per selected condition
+        self.colors = None
+
+        # Minimum wavelength, in case of reading files with whole spectrum data
+        self.min_wavelength = None
+
+        # Maximum wavelength, in case of reading files with whole spectrum data
+        self.max_wavelength = None
+
+        # Selected signal type, one of self.signals
+        self.signal_type = None
+
+        # Indexes to reorder the conditions back to its original order
+        self.idx_no_sorted = None
+
+        # Average time step
+        self.dt = None
+
+        # Heating rate in degrees per second. Must be set by the User.
+        self.scan_rate = None
+
+        # Signal matrix of size n*m. n signals and m selected conditions
+        self.fluo = None
+
+        # 1D numpy array
+        self.temps = None
+
+        # Maximum temperature in the selected temperature range
+        self.max_temp = None
+
+        # Minimum temperature in the selected temperature range
+        self.min_temp = None
+
+        # First derivative of self.fluo
+        self.derivative = None
+
+        # Second derivative of self.fluo
+        self.derivative2 = None
+
+        # Empirical estimation of the Tm based on the derivative values
+        self.tms_from_deriv = None
+
+        # Initial Tms based on an heuristic algorithm
+        self.tms_initial = None
+
+        # Model name, such as EquilibriumTwoState
+        self.model_name = None
+
+        # Fitted parameters values
+        self.params_all = None
+
+        # Std error of the fitted parameters
+        self.errors_abs_all = None
+
+        # Indexes of the conditions that were successfully fitted
+        self.fitted_conditions_indexes = None
+
+        # Relative error of the fitted parameters
+        self.errors_percentage_all = None
+
+        # Predicted signal
+        self.fluo_predictions_all = None
+
+        # Std error of the fitted values
+        self.std_error_estimate_all = None
+
+        # List of booleans, one per fitted conditions, describing if the fitted parameters are 'far' from the fitting bounds.
+        self.parameters_far_from_bounds = None
+
+        # Intercepts of the native state
+        self.bNs = None
+
+        # Intercepts of the unfolded state
+        self.bUs = None
+
+        # Slopes of the native state
+        self.kNs = None
+
+        # Slopes of the unfolded state
+        self.kUs = None
+
+        # Quadratic terms of the native state
+        self.qNs = None
+
+        # Quadratic terms of the unfolded state
+        self.qUs = None
+
+        # Signal of the intermediate
+        self.bIs = None
+
+        # Boolean to indicate if the baseline are constant, linear or quadratic
+        self.fit_kN = None
+        self.fit_kU = None
+        self.fit_qN = None
+        self.fit_qU = None
+
+        # Score provided to the user to rank the fitted conditions
+        self.score = None
+
+        # Combined DG when fitting a three-state model
+        self.dG_comb_std = None
+
+        # Temperature where 1% of the protein is unfolded. It can be an empirical parameter from the Empirical model or a thermodynamic derived quantity from the Equilibrium model
+        self.T_onset = None
+
+        # DG at the standard temperature
+        self.dG_std = None
+
+        # Delta CP value, must be set directly by the User
+        self.cp = None
+
+        # Delta CP component to correct the DG value
+        self.dCp_component = None
+
+        # Names of the fitted parameters
+        self.params_name = None
+
+        # List of conditions that were fitted
+        self.fitted_conditions = None
+
+        # Columns of the signal matrix that were fitted
+        self.fitted_fluo = None
+
+        # Score for the irreversible two-state unfolding model
+        self.pkd = None
+
+        # Score for the three-state empirical model
+        self.T_eucl_comb = None
+
 
     def init_dictionary_to_store_fluo_temp_data(self):
 
         """
         Create 2 dictionaries that will share the same keys, i.e., "350nm", but will have different values
 
-        signal_data_dictionary keys contain the signal data (one for each signal) - a n*m matrix where n is the number of measurements and
+        signal_data_dictionary keys contain the signal data (one for each signal) - an n*m matrix where n is the number of measurements and
                                                                                     m is the number of different samples
 
         temp_data_dictionary   keys contain the temperature (one for each signal) - a vector of length n (same n as before)
@@ -66,14 +244,14 @@ class DSF_molten_prot_fit:
 
         return None
 
-    def load_nanoDSF_xlsx(self, processed_dsf_file,sheet_names=["350nm","330nm","Scattering","Ratio"]):
+    def load_nano_dsf_xlsx(self, processed_dsf_file, sheet_names=None):
 
         """
-        Load the xlsx file (processed) generated by the Nanotemper Prometheus instrument that has one sheet called 'Overview' with a column called 
-        'Sample ID' with the names of the samples, and four sheets called 'Ratio', '330nm', '350nm' and 'Scattering'. 
-        The first column of the signal sheet ('Ratio', '330nm', '350nm', 'Scattering') should be called 'Time [s]'. 
-        The second column should have the temperature data and all subsequent columns store the fluorescence data. 
-        The order of the fluorescence columns should match the order of the 'Sample ID' column in the 'Overview' sheet. 
+        Load the xlsx file (processed) generated by the Nanotemper Prometheus instrument that has one sheet called 'Overview' with a column called
+        'Sample ID' with the names of the samples, and four sheets called 'Ratio', '330nm', '350nm' and 'Scattering'.
+        The first column of the signal sheet ('Ratio', '330nm', '350nm', 'Scattering') should be called 'Time [s]'.
+        The second column should have the temperature data and all subsequent columns store the fluorescence data.
+        The order of the fluorescence columns should match the order of the 'Sample ID' column in the 'Overview' sheet.
 
         Input  - file path of the xlsx file and signal that we want to load (should match the sheet names)
 
@@ -82,9 +260,12 @@ class DSF_molten_prot_fit:
                  self.conditions (and self.conditions_original) has the sample names, if present.
         """
 
-        # Load excel file (this needs to be the processed file!)
+        if sheet_names is None:
+            sheet_names = ["350nm", "330nm", "Scattering", "Ratio"]
+
+        # Load an Excel file (this needs to be the processed file!)
         xls = pd.ExcelFile(processed_dsf_file)
-        
+
         conditions_df = pd.read_excel(xls, "Overview")
 
         conditions    = conditions_df[['Sample ID']].values.flatten().astype(str)
@@ -92,7 +273,7 @@ class DSF_molten_prot_fit:
         self.conditions_original = conditions
         # Add position index to avoid problems with empty names
 
-        self.conditions = [cond + " P" + str(i+1) if isBlank(cond) else cond for i,cond in enumerate(conditions) ] 
+        self.conditions = [cond + " P" + str(i+1) if is_blank(cond) else cond for i,cond in enumerate(conditions)]
 
         self.init_dictionary_to_store_fluo_temp_data()
 
@@ -150,8 +331,8 @@ class DSF_molten_prot_fit:
     def load_tycho_xlsx(self,file):
         
         """
-        Load the xlsx file generated by the Nanotemper Prometheus Tycho instrument. 
-        This file has one sheet called ‘Results’ (with 6 columns named '#', 'Capillary label',..., 'Sample Brightness'), 
+        Load the xlsx file generated by the Nanotemper Prometheus Tycho instrument.
+        This file has one sheet called ‘Results’ (with 6 columns named '#', 'Capillary label',..., 'Sample Brightness'),
         and one sheet called 'Profiles_raw' where the fluorescence data is stored.
 
         The ‘Profiles_raw’ sheet columns should have the following structure:
@@ -161,7 +342,7 @@ class DSF_molten_prot_fit:
         One row with the time, temperature and sample names.
         The remaining rows store the temperature and signal data.
 
-        Input  - file path of the xlsx file 
+        Input  - file path of the xlsx file
 
         Result - self.signals has the signals we loaded i.e., ["350nm","330nm","Scattering","Ratio"]
                  self.signal_data_dictionary and self.temp_data_dictionary have the signal and temperature data
@@ -170,73 +351,73 @@ class DSF_molten_prot_fit:
         """
 
         xls = pd.ExcelFile(file)
-        
+
         # Retrieve the conditions names - in sheet "Results"
         df = pd.read_excel(xls, "Results")
 
-        for colIndex, column in enumerate(df):
+        for col_index, column in enumerate(df):
 
-            columnValues      = df[column]
-            has_desired_value = columnValues.isin(["Capillary label"])
+            column_values      = df[column]
+            has_desired_value = column_values.isin(["Capillary label"])
 
             if any(has_desired_value):
 
-                rowIndexBegin   = np.flatnonzero(has_desired_value)[0]+1
-                initialRatioCol = df.iloc[rowIndexBegin:,colIndex+4]
+                row_index_begin   = np.flatnonzero(has_desired_value)[0]+1
+                initial_ratio_col = df.iloc[row_index_begin:,col_index+4]
                 try:
-                    rowIndexEnd     = np.flatnonzero(initialRatioCol.isnull())[0] + rowIndexBegin
+                    row_index_end     = np.flatnonzero(initial_ratio_col.isnull())[0] + row_index_begin
                 except:
-                    rowIndexEnd     = rowIndexBegin+6
+                    row_index_end     = row_index_begin+6
                 break
 
-        conditions         = np.array(df.iloc[rowIndexBegin:rowIndexEnd,colIndex])
-        numberOfConditions = len(conditions)
+        conditions         = np.array(df.iloc[row_index_begin:row_index_end,col_index])
+        number_of_conditions = len(conditions)
 
         self.conditions_original = conditions
         # Add position index to avoid problems with empty names
-        self.conditions = [cond + " P" + str(i+1) if isBlank(cond) else cond for i,cond in enumerate(conditions) ] 
+        self.conditions = [cond + " P" + str(i+1) if is_blank(cond) else cond for i,cond in enumerate(conditions)]
 
         self.init_dictionary_to_store_fluo_temp_data()
 
         # Retrieve the fluorescence signal - in sheet "Profiles_raw"
         df = pd.read_excel(xls, "Profiles_raw")
 
-        for colIndex, column in enumerate(df):
+        for col_index, column in enumerate(df):
 
-            columnValues      = df[column]
-            has_desired_value = columnValues.isin(["Temperature [°C]"])
+            column_values      = df[column]
+            has_desired_value = column_values.isin(["Temperature [°C]"])
 
             if any(has_desired_value):
 
-                rowIndexBegin   = np.flatnonzero(has_desired_value)[0]+1
-                rowIndexEnd     = np.flatnonzero(columnValues[(rowIndexBegin):].isnull())[0]+rowIndexBegin
+                row_index_begin   = np.flatnonzero(has_desired_value)[0]+1
+                row_index_end     = np.flatnonzero(column_values[row_index_begin:].isnull())[0]+row_index_begin
 
-                temperature     = np.array(df.iloc[rowIndexBegin:rowIndexEnd,colIndex]).astype('float')
+                temperature     = np.array(df.iloc[row_index_begin:row_index_end,col_index]).astype('float')
                 temperature     = temperature_to_kelvin(temperature)
                 break
 
-        columnNames  = df.iloc[rowIndexBegin-1,:]
+        column_names  = df.iloc[row_index_begin-1,:]
 
-        startIndexes = [i for i, j in enumerate(columnNames) if j == conditions[0]]
+        start_indexes = [i for i, j in enumerate(column_names) if j == conditions[0]]
 
-        signals      = np.array(df.iloc[rowIndexBegin-3,startIndexes])
-        signalsClean = []
+        signals      = np.array(df.iloc[row_index_begin-3,start_indexes])
+        signals_clean = []
         
         for s in signals:
             if "ratio" in s.lower():
-                signalsClean.append("Ratio")
+                signals_clean.append("Ratio")
             else:  
                 if "330" in s.lower() :
-                    signalsClean.append("330nm")
+                    signals_clean.append("330nm")
                 if "350" in s.lower():
-                    signalsClean.append("350nm")
+                    signals_clean.append("350nm")
 
-        for i, signal in enumerate(signalsClean):
+        for i, signal in enumerate(signals_clean):
 
-            colStartIndex   = startIndexes[i]
-            colEndIndex     = colStartIndex + numberOfConditions
+            col_start_index   = start_indexes[i]
+            col_end_index     = col_start_index + number_of_conditions
 
-            fluo            = np.array(df.iloc[rowIndexBegin:rowIndexEnd,colStartIndex:colEndIndex]).astype('float') 
+            fluo            = np.array(df.iloc[row_index_begin:row_index_end,col_start_index:col_end_index]).astype('float')
             temp            = temperature
 
             while (len(temp)) > 600:
@@ -247,21 +428,21 @@ class DSF_molten_prot_fit:
             self.signal_data_dictionary[signal]   = fluo
             self.temp_data_dictionary[signal]     = temp
 
-        self.signals        = np.array(signalsClean)
+        self.signals = np.array(signals_clean)
 
         return None
 
-    def load_Thermofluor_xlsx(self,thermofluor_file):
+    def load_thermofluor_xlsx(self, thermofluor_file):
 
         """
         Load DSF Thermofluor xls file and extract data
-        The xls file generated by the ThermoFluor assay in a qPCR instrument. 
+        The xls file generated by the ThermoFluor assay in a qPCR instrument.
         This file has one sheet called 'RFU' where the first row has the sample positions (header), the first column has the temperature data,
-        and all subsequent columns store the fluorescence data. 
+        and all subsequent columns store the fluorescence data.
 
         Input  - file path of the xls file and signal that we want to load
 
-        Result - 
+        Result -
                  self.signal_data_dictionary and self.temp_data_dictionary have the signal and temperature data
                  self.conditions (and self.conditions_original) has the sample names.
 
@@ -285,18 +466,18 @@ class DSF_molten_prot_fit:
 
         return None
 
-    def load_panta_xlsx(self,pantaFile):
+    def load_panta_xlsx(self, panta_file):
 
         """
-        Load the xlsx file generated by a Prometheus Panta instrument. 
-        This file has one sheet called ‘Overview’ with a column called 'Sample ID' with the names of the samples, 
+        Load the xlsx file generated by a Prometheus Panta instrument.
+        This file has one sheet called ‘Overview’ with a column called 'Sample ID' with the names of the samples,
         and one sheet called ‘Data Export’ where all the data is stored. The ‘Data Export’ sheet columns should have the following order:
 
-        Temperature capillary 1 ; Ratio capillary 1 ; … ; Temperature capillary 1 ; 350 nm capillary 1 ; … ; 
-        Temperature capillary 1 ; 330 nm capillary 1 ; … ; Temperature capillary 1 ; scattering capillary 1 ; … ; 
+        Temperature capillary 1 ; Ratio capillary 1 ; … ; Temperature capillary 1 ; 350 nm capillary 1 ; … ;
+        Temperature capillary 1 ; 330 nm capillary 1 ; … ; Temperature capillary 1 ; scattering capillary 1 ; … ;
         Temperature capillary 2 ; Ratio capillary 2; … ;  Temperature capillary n ; Ratio capillary n.
 
-        Columns whose names include "Derivative" ​​are not read.
+        Columns whose names include "Derivative" are not read.
 
         Input  - file path of the xlsx file and signal that we want to load (should match the sheet names)
 
@@ -308,11 +489,11 @@ class DSF_molten_prot_fit:
 
         try:
 
-            data          = pd.read_excel(pantaFile, "Data Export")
+            data          = pd.read_excel(panta_file, "Data Export")
 
         except:
 
-            data          = pd.read_excel(pantaFile, "melting-scan") # Alternative format of PANTA
+            data          = pd.read_excel(panta_file, "melting-scan") # Alternative format of PANTA
 
         column_names  = [str.lower(c) for c in data.columns]
 
@@ -344,43 +525,41 @@ class DSF_molten_prot_fit:
 
         try:
 
-            conditions_df = pd.read_excel(pantaFile, "Overview")
+            conditions_df = pd.read_excel(panta_file, "Overview")
             conditions    = conditions_df[['Sample ID']].values.flatten().astype(str)
 
         except:
 
             conditions = np.repeat('',fluo.shape[1])
 
-
         self.conditions_original = conditions
         # Add position index to avoid problems with empty names
-        self.conditions = [cond + " P" + str(i+1) if isBlank(cond) else cond for i,cond in enumerate(conditions) ] 
+        self.conditions = [cond + " P" + str(i+1) if is_blank(cond) else cond for i,cond in enumerate(conditions)]
 
         return None
 
-    def load_QuantStudio_txt(self,QSfile):
+    def load_quantstudio_txt(self, qs_file):
 
         """
-
-        Input: A txt file ('QSfile') where column 2 has the well position, 
+        Input: A txt file ('QSfile') where column 2 has the well position,
         column 3 the temperature and column 4 the fluorescence signal. Index starts at 1!!!
 
         --- Caution ---
-        The first rows of the file are comments that start with '*' and are not readed
+        The first rows of the file are comments that start with '*' and are not read
         The temperature and signal column have commas that need to be deleted
 
         Columns are separated by spaces
 
-        Input  - file path of the txt file 
+        Input  - file path of the txt file
 
-        Result - 
+        Result -
                  self.signal_data_dictionary and self.temp_data_dictionary have the signal and temperature data
                  self.conditions (and self.conditions_original) has the sample names, if present.
 
         """
 
-        start_row = getStartLineQuantStudioFile(QSfile)
-        data      = pd.read_csv(QSfile,skiprows=start_row,sep=r"\s+",header=None)
+        start_row = get_quantstudio_start_line(qs_file)
+        data      = pd.read_csv(qs_file, skiprows=start_row, sep=r"\s+", header=None)
 
         u, ind     = np.unique(data.iloc[:,1], return_index=True)
         conditions = u[np.argsort(ind)]
@@ -388,7 +567,7 @@ class DSF_molten_prot_fit:
         self.conditions_original = conditions
         self.conditions = conditions
 
-        fluo , temp = generateMergedQuantStudioDataFrame(data)
+        fluo , temp = generate_merged_quantstudio_df(data)
 
         self.init_dictionary_to_store_fluo_temp_data()
         signal = "Fluorescence"
@@ -399,12 +578,12 @@ class DSF_molten_prot_fit:
 
         return None
 
-    def load_Agilents_MX3005P_qPCR_txt(self,filename):
+    def load_agilent_mx3005p_qPCR_txt(self,filename):
 
         """
-        Input: A txt file where the 2nd column has the fluorescence data, and 
-        the 3rd column the temperature. 
-        Wells are separated by rows containing a sentence like this one: 'Segment  2 Plateau  1 Well  1' 
+        Input: A txt file where the 2nd column has the fluorescence data, and
+        the 3rd column the temperature.
+        Wells are separated by rows containing a sentence like this one: 'Segment  2 Plateau  1 Well  1'
         """
 
         dfs      = []
@@ -464,8 +643,7 @@ class DSF_molten_prot_fit:
     def load_csv_file(self,file):
 
         """
-
-        Input: A csv file where the first column has the temperature and all the next columns the 
+        Input: A csv file where the first column has the temperature and all the next columns the
         fluorescence data, header is required
 
         """
@@ -596,12 +774,17 @@ class DSF_molten_prot_fit:
 
         return None
 
-    def load_supr_dsf(self,JSON_file):
+    def load_supr_dsf(self, json_file):
 
-        self.init_dictionary_to_store_fluo_temp_data()
+        """
+        Load Supr_DSF JSON export format and interpolate signals to a fixed temperature grid.
+
+        Args:
+            json_data = file.read()
+        """
 
         # Read JSON data from a file
-        with open(JSON_file, "r") as file:
+        with open(json_file, "r") as file:
             json_data = file.read()
 
         # Parse JSON data into a dictionary
@@ -670,8 +853,6 @@ class DSF_molten_prot_fit:
 
         signals = np.array(signals)
 
-        # Iterate over the wavelengths
-        
         named_wls = [str(wl) + 'nm' for wl in wavelengths]
 
         for i in range(n_wavelengths):
@@ -710,7 +891,7 @@ class DSF_molten_prot_fit:
             diff_350 = np.abs(wavelengths - 350)
             diff_330 = np.abs(wavelengths - 330)
 
-            # Check if we have wavelengthd data between 349 - 351 nm and between 329 - 331 nm.
+            # Check if we have wavelength data between 349 - 351 nm and between 329 - 331 nm.
             if np.min(diff_350) < 1 and np.min(diff_330) < 1:
 
                 idx350 = np.argmin(diff_350)
@@ -719,9 +900,9 @@ class DSF_molten_prot_fit:
                 f350   =  self.signal_data_dictionary[named_wls[idx350]]
                 f330   =  self.signal_data_dictionary[named_wls[idx330]]
 
-                fRatio = f350 / f330
+                f_ratio = f350 / f330
 
-                self.signal_data_dictionary[signal_name] = fRatio
+                self.signal_data_dictionary[signal_name] = f_ratio
                 self.temp_data_dictionary[signal_name]   = self.temp_data_dictionary[named_wls[idx350]]
 
                 named_wls = [signal_name] + named_wls
@@ -729,6 +910,34 @@ class DSF_molten_prot_fit:
         except:
 
             pass
+
+        barycenters = []
+
+        for i, condition in enumerate(conditions):
+
+            # We need to extract the signal data for this condition
+            y = signals[i,:,:]
+            x = temperatures[:, i]
+
+            barycenter = np.apply_along_axis(get_barycenter, 1, y,wavelengths = wavelengths)
+
+            # Interpolate every 0.5 degrees
+            y_interpolated = np.interp(
+                temperature_fixed,
+                x, barycenter,
+                left=np.nan, right=np.nan)
+
+            barycenters.append(y_interpolated)
+
+        # Create a matrix from the barycenters
+        barycenters = np.array(barycenters).T
+
+        non_nas = np.logical_not(np.isnan(barycenters).any(axis=1))
+
+        self.signal_data_dictionary['BCM'] = barycenters[non_nas, :]
+        self.temp_data_dictionary['BCM']   = temperature_to_kelvin(temperature_fixed[non_nas])
+
+        named_wls = ['BCM'] + named_wls
 
         self.signals = np.array([named_wls])
 
@@ -741,17 +950,21 @@ class DSF_molten_prot_fit:
     def load_uncle_multi_channel(self,uncle_file):
 
         """
+        Load UNCLE multichannel Excel file, extract per-wavelength matrices and interpolate to fixed temps.
+
+        Args:
+            uncle_file (str): Path to the UNCLE .xlsx file.
 
         Function to load the data from the UNCLE instrument
-
+        Returns:
         Below is an example of the data format:
 
             Toms run.uni			Sample Name	1 mg/ml Protein
-	        Temp :25, Time:134.9	Temp :25.49, Time:185.4	Temp :25.99, Time:236.4	Temp :26.48, Time:286.2	Temp :27, Time:336.2	Temp :27.48, Time:386.3	Temp :27.98, Time:436.3	Temp :28.46, Time:486.1	Temp :29.02, Time:536.1	Temp :29.5, Time:586	Temp :30, Time:636.2	Temp :30.49, Time:686.2	Temp :31, Time:736.2	Temp :31.5, Time:786.2	Temp :32, Time:836.2	Temp :32.48, Time:886.2	Temp :33, Time:936.1	Temp :33.5, Time:986.2	Temp :34.01, Time:1036.2	Temp :34.49, Time:1086.1	Temp :35, Time:1136.9	Temp :35.5, Time:1187.1
-            Wavelength	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity	Intensity
+	        Temp :25, Time:134.9	Temp :25.49, Time:185.4
+            Wavelength	Intensity	Intensity
 
-            249.182266235352	22.384	22.417	22.45	22.406	22.373	22.362	22.373	22.439	22.384	22.406	22.417	22.406	22.45	22.439	22.483	22.461	22.428	22.395	22.417	22.439	22.439	22.373
-            249.664016723633	13.144	14.261	14.458	16.035	16.068	19.025	11.369	14.491	15.969	17.777	23.691	20.57	14.754	20.668	25.137	20.8	22.311	21.293	21.095	19.65	21.128	16.725
+            249.18	22.384	22.417
+            249.66	13.144	14.261
 
         The line should be discarded
         The second line contains the time and temperature data. We're interested only in the temperature data
@@ -760,7 +973,6 @@ class DSF_molten_prot_fit:
         The fifth line contains the first row of the signal data, with the wavelength data in the first column
 
         The file is a xlsx file with as many sheets as channels
-
         """
 
         # Get the names of the sheets
@@ -782,10 +994,14 @@ class DSF_molten_prot_fit:
             try:
 
                 # Read the data from the sheet
-                data = pd.read_excel(uncle_file, sheet_name=sheet_name,
-                                     header=None,skiprows=0)
+                data = pd.read_excel(
+                    uncle_file,
+                    sheet_name=sheet_name,
+                    header=None,
+                    skiprows=0
+                )
 
-                # Extract the sample name, from the first row, fitfh column
+                # Extract the sample name, from the first row, fifth column
                 sample_name = data.iloc[0, 4]
 
                 # Remove the first row
@@ -865,32 +1081,55 @@ class DSF_molten_prot_fit:
             self.signal_data_dictionary[wl] = fluo[non_nas, :]
             self.temp_data_dictionary[wl]   = temperature_to_kelvin(temperature_fixed[non_nas])
 
-        # Try to add the ratio signal
-        try:
+        # Add the ratio signal
+        signal_name = 'Ratio 350 nm / 330 nm'
 
-            signal_name = 'Ratio 350 nm / 330 nm'
+        diff_350 = np.abs(wavelengths - 350)
+        diff_330 = np.abs(wavelengths - 330)
 
-            diff_350 = np.abs(wavelengths - 350)
-            diff_330 = np.abs(wavelengths - 330)
+        # Check if we have wavelength data between 349 - 351 nm and between 329 - 331 nm.
+        if np.min(diff_350) < 1 and np.min(diff_330) < 1:
 
-            # Check if we have wavelengthd data between 349 - 351 nm and between 329 - 331 nm.
-            if np.min(diff_350) < 1 and np.min(diff_330) < 1:
-                idx350 = np.argmin(diff_350)
-                idx330 = np.argmin(diff_330)
+            idx350 = np.argmin(diff_350)
+            idx330 = np.argmin(diff_330)
 
-                f350 = self.signal_data_dictionary[named_wls[idx350]]
-                f330 = self.signal_data_dictionary[named_wls[idx330]]
+            f350 = self.signal_data_dictionary[named_wls[idx350]]
+            f330 = self.signal_data_dictionary[named_wls[idx330]]
 
-                fRatio = f350 / f330
+            f_ratio = f350 / f330
 
-                self.signal_data_dictionary[signal_name] = fRatio
-                self.temp_data_dictionary[signal_name] = self.temp_data_dictionary[named_wls[idx350]]
+            self.signal_data_dictionary[signal_name] = f_ratio
+            self.temp_data_dictionary[signal_name] = self.temp_data_dictionary[named_wls[idx350]]
 
-                named_wls = [signal_name] + named_wls
+            named_wls = [signal_name] + named_wls
 
-        except:
+        barycenters = []
 
-            pass
+        for i, condition in enumerate(conditions):
+
+            # We need to extract the signal data for this condition
+            signal_temp      = signals[i]
+            temperature_temp = temperatures[i]
+
+            barycenter = np.apply_along_axis(get_barycenter, 0, signal_temp,wavelengths = wavelengths)
+
+            # Interpolate every 0.5 degrees
+            y_interpolated = np.interp(
+                temperature_fixed,
+                temperature_temp, barycenter,
+                left=np.nan, right=np.nan)
+
+            barycenters.append(y_interpolated)
+
+        # Create a matrix from the barycenters
+        barycenters = np.array(barycenters).T
+
+        non_nas = np.logical_not(np.isnan(barycenters).any(axis=1))
+
+        self.signal_data_dictionary['BCM'] = barycenters[non_nas, :]
+        self.temp_data_dictionary['BCM']   = temperature_to_kelvin(temperature_fixed[non_nas])
+
+        named_wls = ['BCM'] + named_wls
 
         self.signals = np.array([named_wls])
 
@@ -906,21 +1145,25 @@ class DSF_molten_prot_fit:
     def load_aunty_xlsx_file(self,file_path):
 
         """
+        Load AUNTY-format multi-sheet Excel file where each sheet is a condition.
+
+        Args:
+            file_path (str): Path to the AUNTY .xls/.xlsx file.
         Import the AUNTY xlsx file which has the following format
         Many sheets where the name is the condition name
         The data is stored as follows:
             The first column has the temperature data
             Subsequent columns have the fluorescence data
             The first row indicates the wavelength
-
+        Returns:
             EMPTY_CELL	wavelength
             temperature	250	    250.490005493164	250.979995727539	251.470001220703
             15.00	    98.22	58.0299987792969	49.9000015258789	93.1100006103516
+        # Create empty dictionaries to store the data
         """
-
+        # Get the names of the sheets
         sheet_names = get_sheet_names_of_xlsx(file_path)
 
-        # Create empty dictionaries to store the data
         self.init_dictionary_to_store_fluo_temp_data()
 
         signals      = []
@@ -998,9 +1241,29 @@ class DSF_molten_prot_fit:
         f350 = self.signal_data_dictionary[named_wls[idx350]]
         f330 = self.signal_data_dictionary[named_wls[idx330]]
 
-        fRatio = f350 / f330
+        f_ratio = f350 / f330
 
-        self.signal_data_dictionary[ratio_signal_name] = fRatio
+        barycenters = []
+
+        for i, condition in enumerate(conditions):
+
+            # We need to extract the signal data for this condition
+            signal_temp      = signals[i]
+
+            barycenter = np.apply_along_axis(get_barycenter, 1, signal_temp,wavelengths = wavelengths)
+
+            barycenters.append(barycenter)
+
+        # Create a matrix from the barycenters
+        barycenters = np.array(barycenters).T
+
+        self.signal_data_dictionary['BCM'] = barycenters
+        self.temp_data_dictionary['BCM']   = temperature_to_kelvin(temperature)
+
+        named_wls = ['BCM'] + named_wls
+
+
+        self.signal_data_dictionary[ratio_signal_name] = f_ratio
         self.temp_data_dictionary[ratio_signal_name] = self.temp_data_dictionary[named_wls[idx350]]
 
         self.conditions          = np.array(conditions)
@@ -1015,29 +1278,48 @@ class DSF_molten_prot_fit:
     def set_signal(self,which):
 
         """
-        Assign self.fluo and self.temps according to the desired signal
+        Set the active signal for analysis by assigning self.fluo and self.temps.
 
-        self.fluo is a n*m matrix where n is the number of measurements and m is the number of different samples
+        Args:
+            which (str): Signal key present in self.signal_data_dictionary (e.g., '350nm').
+        Assign self.fluo and self.temps according to the desired signal
+        Returns:
+        self.fluo is an n*m matrix where n is the number of measurements and m is the number of different samples
         self.temps is a vector of length n (same n as before)
 
-        Assign self.dt (averague value of the temperature step in self.temps), 
+        Assign self.dt (average value of the temperature step in self.temps),
         and set the signal we are analyzing, i.e., "350nm"
-
         """
 
         self.fluo   = self.signal_data_dictionary[which]
         self.temps  = self.temp_data_dictionary[which]
 
-        self.set_dt()
         self.set_signal_type(which)
+
+    def set_min_max_temp(self):
+
+        """
+        Notes:
+            Set self.max_temp and self.min_temp as the maximum and minimum of self.temps.
+        """
+
+        self.min_temp = np.min(self.temps)
+        self.max_temp = np.max(self.temps)
+
+        return None
 
     def set_dt(self):
 
         """
-        Get averague value of the temperature step in self.temps
+        Notes:
+            Set self.dt as the average temperature step in self.temps.
         """
 
-        self.dt         = ( max(self.temps) - min(self.temps) ) / (len(self.temps) - 1)
+        if self.min_temp is None:
+
+            self.set_min_max_temp()
+
+        self.dt = ( self.max_temp - self.min_temp ) / (len(self.temps) - 1)
 
         return None
 
@@ -1051,13 +1333,35 @@ class DSF_molten_prot_fit:
 
         return None
 
+    def filter_by_temperature(self,min_temp,max_temp):
+
+        """
+        Filter fluorescence and temperature data to a specified temperature range.
+
+        Args:
+            min_temp (float): Minimum temperature threshold.
+            max_temp (float): Maximum temperature threshold.
+        Filter self.fluo and self.temps according to min_temp and max_temp
+        """
+
+        self.fluo = filter_fluo_by_temp(self.fluo,self.temps,min_temp,max_temp)
+        self.temps = filter_temp_by_temp(self.temps,min_temp,max_temp)
+
+        self.set_min_max_temp()
+
+        self.set_dt()
+
+        return None
+
     def sort_by_conditions_name(self,sort=False):
 
         """
-        Re order the samples according to the sample names - check index_natsorted function from the natsort package
-        """
+        Optionally reorder samples according to their names using natural sorting.
 
-        self.conditions_original = np.array(self.conditions_original)
+        Args:
+            sort (bool): If True, sort conditions; if False, revert to original order.
+        Reorder the samples according to the sample names - check index_natsorted function from the natsort package
+        """
 
         if sort:
 
@@ -1078,20 +1382,79 @@ class DSF_molten_prot_fit:
 
         return None
 
-    def select_signal_columns(self,columns_to_include):
+    def set_colors(self,color_list):
 
         """
-        Select a subset of samples that we want to analyze    
-    
-        Input  - a 1D boolean array 'columns_to_include'
-        Result - self.fluo with a subset of samples
+        Set custom colors for samples.
+
+        Args:
+            color_list (list): List of color specifications for each sample.
+        Returns:
+            None
+        Notes:
+            Sets self.all_colors
         """
 
-        if isinstance(columns_to_include, bool):
+        if len(color_list) == 0:
+            return None
 
-            columns_to_include = np.array([columns_to_include]) 
+        if len(color_list) != len(self.conditions_original):
+            raise ValueError("Length of color_list must match number of conditions.")
 
-        self.fluo = self.fluo[:,columns_to_include]
+        # convert to list if it is not one
+        if not isinstance(color_list, (list, np.ndarray)):
+            color_list = list(color_list)
+
+        self.all_colors = color_list
+
+        return None
+
+    def set_conditions(self,condition_list):
+
+        """
+        Set custom condition names for samples.
+
+        Args:
+            condition_list (list): List of condition names for each sample.
+        Returns:
+            None
+        Notes:
+            Sets self.conditions
+        """
+
+        if len(condition_list) != len(self.conditions_original):
+            raise ValueError("Length of condition_list must match number of conditions.")
+
+        # convert to list if it is not one
+        if not isinstance(condition_list, (list, np.ndarray)):
+            condition_list = list(condition_list)
+
+        self.conditions = condition_list
+
+        return None
+
+    def select_conditions(self,boolean_mask):
+
+        """
+        Select a subset of sample columns for analysis.
+
+        Args:
+            boolean_mask (array-like): Boolean mask or index list selecting columns.
+        Select a subset of samples that we want to analyze
+
+        """
+
+        # Convert to list if it is not one
+        if not isinstance(boolean_mask, (list, np.ndarray)):
+            boolean_mask = list(boolean_mask)
+
+        self.conditions = [x for i,x in enumerate(self.conditions) if boolean_mask[i]]
+
+        if self.all_colors is not None:
+
+            self.colors = [x for i,x in enumerate(self.all_colors) if boolean_mask[i]]
+
+        self.fluo = self.fluo[:,boolean_mask]
 
         return None
 
@@ -1100,77 +1463,94 @@ class DSF_molten_prot_fit:
         """
 
         Use this function if the fluorescence curves present spikes. It applies a
-        rolling median window filter 
+        rolling median window filter
 
-        Input - an integer 'n_degree_window'
-
-        Result - smoothed self.fluo 
-
+        Args:
+            n_degree_window (int): Window size in temperature units for median filtering.
+        Returns:
+            None
+        Notes:
+            Sets self.fluo
         """
 
-        self.fluo = np.apply_along_axis(median_filter_from_fluo_and_temp_vectors,0,
-            self.fluo,self.temps,n_degree_window)
+        self.fluo = np.apply_along_axis(
+            median_filter_from_fluo_and_temp_vectors,
+            0,
+            self.fluo,
+            self.temps,
+            n_degree_window
+        )
 
         return None
 
     def estimate_fluo_derivates(self,temp_window_length=8):
 
         """
-        Compute the 1st and 2nd derivative of self.fluo using the Savitzky-Golay-Filter
-        Estimate the melting temperature based on the derivative peaks (maximums or minimums)
+        Estimate first and second derivatives of fluorescence using Savitzky-Golay.
 
-        Input - an integer 'temp_window_length' that is the window_length for the Savitzky-Golay-Filter
-
-        Result - we assign self.derivative, self.derivative2 and self.tms_from_deriv
-
+        Args:
+            temp_window_length (int): Approximate window length in temperature units used to compute the filter.
+        Returns:
+            None
+        Notes:
+            Sets self.derivative, self.derivative2, and self.tms_from_deriv
         """
 
-        # No derivative if we don't have enough temperature data
-        if ( (np.max(self.temps) - np.min(self.temps)) < 16):  
-
-            self.tms_from_deriv = None
-            self.derivative     = None
-            self.derivative2    = None
-
-            return None
+        if self.dt is None:
+            self.set_dt()
 
         odd_n_data_points_window_len         = np.ceil(temp_window_length / self.dt) // 2 * 2 + 1
         odd_n_data_points_window_len_2nd_der = np.ceil((temp_window_length+5) / self.dt) // 2 * 2 + 1
 
-        self.derivative = savgol_filter(self.fluo,axis=0,
-            window_length=odd_n_data_points_window_len,polyorder=4,
-            deriv=1,mode="nearest")
+        self.derivative = savgol_filter(
+            self.fluo,
+            axis=0,
+            window_length=odd_n_data_points_window_len,
+            polyorder=4,
+            deriv=1,
+            mode="nearest"
+        )
 
-        self.derivative2 = savgol_filter(self.fluo,axis=0,
-            window_length=odd_n_data_points_window_len_2nd_der,polyorder=4,
-            deriv=2,mode="nearest")
+        self.derivative2 = savgol_filter(
+            self.fluo,
+            axis=0,
+            window_length=odd_n_data_points_window_len_2nd_der,
+            polyorder=4,
+            deriv=2,
+            mode="nearest"
+        )
 
-        """
-        
-        Estimate Tm from the derivative curve
-        To do this, we first shift the first derivative by using the mean of the 
-            median of the first and last 5 degrees of each melting curve.
+        der_temp_init = filter_fluo_by_temp(
+            self.derivative,
+            self.temps,
+            self.min_temp+6,
+            self.min_temp+11
+        )
 
-        """
-
-        der_temp_init = filter_fluo_by_temp(self.derivative,
-            self.temps,min(self.temps)+6,min(self.temps)+11)
-
-        der_temp_end  = filter_fluo_by_temp(self.derivative,
-            self.temps,max(self.temps)-11,max(self.temps)-6)
+        der_temp_end  = filter_fluo_by_temp(
+            self.derivative,
+            self.temps,
+            self.max_temp-11,
+            self.max_temp-6
+        )
 
         med_init  = np.median(der_temp_init,axis=0)
-        med_end   = np.median(der_temp_end ,axis=0)   
+        med_end   = np.median(der_temp_end ,axis=0)
+
         mid_value = np.array([(x+y)/2 for x,y in zip(med_init,med_end)])
 
-        der_temp = filter_fluo_by_temp(self.derivative,
-            self.temps,min(self.temps)+6,max(self.temps)-6)
+        der_temp = filter_fluo_by_temp(
+            self.derivative,
+            self.temps,
+            self.min_temp+6,
+            self.max_temp-6
+        )
 
         mid_value = mid_value * np.where(mid_value>0,1,-1)
 
         der_temp = np.add(der_temp,mid_value) 
 
-        temp_temp = filter_temp_by_temp(self.temps,min(self.temps)+6,max(self.temps)-6)
+        temp_temp = filter_temp_by_temp(self.temps,self.min_temp+6,self.max_temp-6)
 
         max_der = np.amax(der_temp,axis=0)
         min_der = np.amin(der_temp,axis=0)
@@ -1185,78 +1565,194 @@ class DSF_molten_prot_fit:
 
             self.tms_from_deriv = get_temp_at_minimum_of_derivative(temp_temp,der_temp)
 
+        return None
+
+    def set_baseline_types(self,poly_order_native=1,poly_order_unfolded=1):
+
+        """
+        Args:
+            poly_order_native (int): Polynomial order for native baseline fitting (default 1).
+            poly_order_unfolded (int): Polynomial order for unfolded baseline fitting (default 1
+        Returns:
+            None
+        Notes:
+            Sets self.poly_order_native, self.poly_order_unfolded,
+            self.fit_kN, self.fit_kU, self.fit_qN, self.fit_q
+        """
+
+        self.poly_order_native   = poly_order_native
+        self.poly_order_unfolded = poly_order_unfolded
+
+        self.fit_kN = poly_order_native > 0
+        self.fit_kU = poly_order_unfolded > 0
+
+        self.fit_qN = poly_order_native > 1
+        self.fit_qU = poly_order_unfolded > 1
 
         return None
 
-    def estimate_baselines_parameters(self,baseline_degree_window):
+    def estimate_baselines_parameters(self,baseline_degree_window=12):
 
         """
+        Fit linear baselines to native and unfolded portions to estimate slopes & intercepts.
 
-        Estimate the temperature dependence of the native/unfolded state fluorescence.
+        Args:
+            baseline_degree_window (float): Temperature window (in degrees) used to select baseline regions.
 
-        Input - an integer 'baseline_degree_window' that is the temperature window to fit the equation of a line
+        Returns:
+            None
 
-        Result - we assign self.bNs, self.bUs, self.kNs, self.kUs
-    
-        kN, bN: slope and intercept of the pre-transition baseline Native State 
-        kU, bU: slope and intercept of the post-transition baseline, Unfolded State 
-
+        Notes:
+            Sets self.bNs, self.bUs, self.kNs, self.kUs and self.tms_initial.
         """
 
-        max_native_temp   = np.min(self.temps) + baseline_degree_window
-        min_unfolded_temp = np.max(self.temps) - baseline_degree_window
+        max_native_temp   = self.min_temp + baseline_degree_window
+        min_unfolded_temp = self.max_temp - baseline_degree_window
 
-        native_fluo       = filter_fluo_by_temp(self.fluo,self.temps,
-            np.min(self.temps),max_native_temp)
+        native_fluo       = filter_fluo_by_temp(
+            self.fluo,
+            self.temps,
+            self.min_temp,
+            max_native_temp
+        )
 
-        native_temps      = filter_temp_by_temp(self.temps,np.min(self.temps),max_native_temp)
+        native_temps      = filter_temp_by_temp(
+            self.temps,
+            self.min_temp,
+            max_native_temp
+        )
 
-        unfolded_fluo     = filter_fluo_by_temp(self.fluo,self.temps,
-            min_unfolded_temp,np.max(self.temps))
+        unfolded_fluo     = filter_fluo_by_temp(
+            self.fluo,
+            self.temps,
+            min_unfolded_temp,
+            self.max_temp
+        )
 
-        unfolded_temps    = filter_temp_by_temp(self.temps,min_unfolded_temp,max(self.temps))
+        unfolded_temps    = filter_temp_by_temp(
+            self.temps,
+            min_unfolded_temp,
+            self.max_temp
+        )
 
-        fitNative   = [linregress(native_temps,  native_fluo[:,i])
-        for i in range(native_fluo.shape[1])]
+        bNs = []
+        bUs = []
 
-        fitUnfolded = [linregress(unfolded_temps,  unfolded_fluo[:,i])
-        for i in range(unfolded_fluo.shape[1])]
-        
-        kN           = np.array( [c.slope     for c in fitNative] )
-        bN           = np.array( [c.intercept for c in fitNative] )
-        
-        kU           = np.array( [c.slope     for c in fitUnfolded] )
-        bU           = np.array( [c.intercept for c in fitUnfolded] )
+        kNs = []
+        kUs = []
 
-        self.bNs, self.kNs  = bN, kN
-        self.bUs, self.kUs  = bU, kU
+        qNs = []
+        qUs = []
 
-        self.tms_initial = estimate_initial_tm_from_baseline_fitting(self.bUs,self.bNs,
-            self.kNs,self.kUs,self.temps,baseline_degree_window,self.derivative)
+        bIs = []
+
+        native_temps_shifted = temperature_to_kelvin(native_temps) - temp_standard
+        unfolded_temps_shifted = temperature_to_kelvin(unfolded_temps) - temp_standard
+
+        for i in range(native_fluo.shape[1]):
+
+            y_native = native_fluo[:,i]
+            y_unfolded = unfolded_fluo[:,i]
+
+            bN, kN, qN = None, None, None
+            bU, kU, qU = None, None, None
+
+            bI = None
+
+            if self.poly_order_native == 0:
+
+                bN = np.average(y_native)
+
+                b_start = bN
+
+            if self.poly_order_native == 1:
+
+                kN, bN = fit_line_robust(native_temps_shifted,y_native)
+
+                b_start = bN + kN * np.min(native_temps_shifted)
+
+            if self.poly_order_native == 2:
+
+                qN, kN, bN = fit_quadratic_robust(native_temps_shifted,y_native)
+
+                min_t = np.min(native_temps_shifted)
+
+                b_start = bN + kN * min_t + qN * min_t**2
+
+            if self.poly_order_unfolded == 0:
+
+                bU = np.average(y_unfolded)
+
+                b_end = bU
+
+            if self.poly_order_unfolded  == 1:
+
+                kU, bU = fit_line_robust(unfolded_temps_shifted,y_unfolded)
+
+                b_end = bU + kU * np.max(unfolded_temps_shifted)
+
+            if self.poly_order_unfolded  == 2:
+
+                qU, kU, bU = fit_quadratic_robust(unfolded_temps_shifted,y_unfolded)
+
+                max_t = np.max(unfolded_temps_shifted)
+
+                b_end = bU + kU * max_t + qU * max_t**2
+
+            bNs.append(bN)
+            bUs.append(bU)
+
+            kNs.append(kN)
+            kUs.append(kU)
+
+            qNs.append(qN)
+            qUs.append(qU)
+
+            bI = (b_start + b_end) / 2
+
+            bIs.append(bI)
+
+        bNs = np.array(bNs)
+        bUs = np.array(bUs)
+
+        kNs = np.array(kNs)
+        kUs = np.array(kUs)
+
+        qNs = np.array(qNs)
+        qUs = np.array(qUs)
+
+        bIs = np.array(bIs)
+
+        self.bNs = bNs
+        self.bUs = bUs
+
+        self.kNs = kNs
+        self.kUs = kUs
+
+        self.qNs = qNs
+        self.qUs = qUs
+
+        self.bIs = bIs
 
         return None
 
     def initialize_model(self,model_name,params_name):
 
         """
+        Initialize internal storage before performing a fit with a model.
 
-        Initialize attributes, this function should be called internally  
-        before fitting the fluorescence data to a model
+        Args:
+            model_name (str): Name of the model (used for bookkeeping).
+            params_name (list): List of parameter names corresponding to model parameters.
 
-        The idea is then to generate a model function that can be optimized using scipy_fit routine
-
-            Scipy_fit optimizes ydata = f(xdata, *params) 
-
-            In our case, 'T' is the temperature vector (xdata) and 
-            kN, bN, kU, bU, dHm, Tm are for example in self.EquilibriumTwoState the parameters to fit.
-            The fluorescence values represent the ydata
-
+        Returns:
+            None: Initializes lists used to store fit results and errors.
         """
 
         self.model_name  = model_name   # EquilibriumTwoState, EmpiricalTwoState, ...
         self.params_name = params_name  # i.e. ['kN', 'bN', 'kU', 'bU', 'dHm', 'Tm']
 
-        #  fitted_conditions_indexes is a list of integers: indexes of the conditions that could be 'succesfully' fitted
+        #  fitted_conditions_indexes is a list of integers: indexes of the conditions that could be 'successfully' fitted
         self.fitted_conditions_indexes  = []
         
         self.params_all                 = [] # values of the fitted parameters
@@ -1268,17 +1764,32 @@ class DSF_molten_prot_fit:
 
         return None
 
-    def fit_model_and_fill_params_and_errors(self,model_function,initial_estimates,
-        low_bounds,high_bounds,fit_algorithm="trf"):
+    def fit_model_and_fill_params_and_errors(
+            self,
+            model_function,
+            initial_estimates,
+            low_bounds,
+            high_bounds,
+            fit_algorithm="trf"):
 
         """
+        Fit model_function independently to each column (condition) in self.fluo and store results.
 
-        Perform the fitting according to the model function and boundaries
-        Fill the attributes initialized when calling self.initialize_model()
+        Args:
+            model_function (callable): Function f(T, *params) returning predicted fluorescence.
+            initial_estimates (list): List of initial parameter tuples per condition.
+            low_bounds (list): List of lower-bound lists per condition.
+            high_bounds (list): List of upper-bound lists per condition.
+            fit_algorithm (str): Optimization method passed to scipy.curve_fit (default 'trf').
 
+        Returns:
+            None: Populates self.params_all, self.errors_abs_all, self.errors_percentage_all,
+                  self.fluo_predictions_all, self.std_error_estimate_all and self.fitted_conditions_indexes.
         """
 
-        for index in range(self.fluo.shape[1]):
+        n = self.fluo.shape[1]
+
+        for index in range(n):
 
             low_bound     =  low_bounds[index]
             high_bound    =  high_bounds[index]
@@ -1286,15 +1797,16 @@ class DSF_molten_prot_fit:
 
             fluo_vec      =  self.fluo[:,index].flatten()
 
-            try: 
+            try:
 
-                params, cov = curve_fit(model_function, self.temps,fluo_vec, 
-                    p0=p0, bounds=(tuple(low_bound), tuple(high_bound)),
-                    max_nfev=5E4, method=fit_algorithm)
-
-                # Check if we are close to the fitting boundaries
-                estimation_quality = check_good_parameters_estimation(params,low_bound,high_bound,self.params_name)
-                self.parameters_far_from_bounds.append(estimation_quality)
+                params, cov = curve_fit(
+                    model_function,
+                    self.temps,
+                    fluo_vec,
+                    p0=p0,
+                    bounds=(tuple(low_bound), tuple(high_bound)),
+                    method=fit_algorithm
+                )
 
                 errors = np.sqrt(np.diag(cov))
 
@@ -1312,78 +1824,43 @@ class DSF_molten_prot_fit:
                 self.fitted_conditions_indexes.append(index)
 
             except:
+
                 pass
 
         if self.fitted_conditions_indexes:
 
             self.fitted_conditions     = [self.conditions[index] for index in self.fitted_conditions_indexes]
             self.fitted_fluo           =  self.fluo[:,np.array(self.fitted_conditions_indexes)]
-            self.get_baseline_separation_factor()
 
         return None
 
-    def get_baseline_separation_factor(self):
+
+    def equilibrium_two_state(self,fit_algorithm="trf"):
 
         """
+        Fit the thermodynamic equilibrium two-state model to the data.
 
-        Get the baseline_separation_factor 
-        To use this method, run first at least one fitting model with the 5 parameters
-        'kN, 'bN', 'kU', 'bU' and 'Tm' 
+        Args:
+            fit_algorithm (str): Curve-fit algorithm passed to scipy (default 'trf').
 
-        If they are not present in the model parameters, 
-            the baseline factor will be set to 1 to all fitted conditions
+        Returns:
+            None
 
+        Notes:
+            Sets attributes describing the fit (params, errors, dG_std, dCp_component, T_onset).
         """
 
-        required_parameters = ['kN', 'bN', 'kU', 'bU', 'Tm'] 
-
-        params_present =  all(req_param in self.params_name  for req_param in required_parameters)
-
-        if not params_present:
-
-            self.baseline_factor_all = [1 for _ in range(len(self.fitted_conditions))]
-
-            return None
-
-        self.baseline_factor_all        = []
-        position_of_required_parameters = [self.params_name.index(param) for param in required_parameters]
-    
-        for index in range(len(self.fitted_conditions)):
-
-            params_of_condition_index  = np.array(self.params_all[index])
-            kN, bN, kU, bU, Tm    = params_of_condition_index.take(position_of_required_parameters, 0)
-
-            std_error_estimate      = self.std_error_estimate_all[index]
-            baseline_factor = estimate_baseline_factor(kN, bN, kU, bU, Tm, std_error_estimate)
-
-            self.baseline_factor_all.append(baseline_factor)
-
-        return None
-
-    def EquilibriumTwoState(self,fit_algorithm="trf"):
-
-        """
-        This thermodynamic-based model presupposes that the protein only exists in the native (folded) or unfolded state and that there 
-        is an equilibrium between these two states given by the unfolding reaction N ⇆ U.
-
-        Result - we perform the fitting and assign the values to 
-
-        self.model_name,            self.params_name,               self.fitted_conditions_indexes  
-        self.params_all,            self.errors_abs_all,            self.errors_percentage_all      
-        self.fluo_predictions_all,  self.std_error_estimate_all,    self.parameters_far_from_bounds 
-
-        """
-
-        params_name = ['kN', 'bN', 'kU', 'bU', 'dHm', 'Tm']
+        model, params_name = get_fit_fx_two_state_signal_fit(
+            fit_kN=self.fit_kN,
+            fit_kU=self.fit_kU,
+            fit_qN=self.fit_qN,
+            fit_qU=self.fit_qU,
+            type = "equilibrium"
+        )
 
         self.initialize_model("EquilibriumTwoState",params_name)
 
-        def model(T, kN, bN, kU, bU, dHm, Tm):
-
-            return ((kN * T + bN + (kU * T + bU) * np.exp(dHm / R_gas_constant * 
-                (1 / Tm - 1 / T)))) / (1 + np.exp(dHm / R_gas_constant * (1 / Tm - 1 / T)))
-
-        init_dH = 60000
+        init_dH = 80 # kcal/mol
         
         low_bounds        = []
         high_bounds       = []
@@ -1391,66 +1868,84 @@ class DSF_molten_prot_fit:
 
         for index in range(self.fluo.shape[1]):
 
-            tm_init = self.tms_initial[index]
+            tm_init = self.tms_from_deriv[index]
 
-            p0 = (self.kNs[index], self.bNs[index], self.kUs[index], self.bUs[index], init_dH, tm_init)
+            if tm_init > self.max_temp - 3:
+                tm_init = self.max_temp - 10
 
-            low_bound    =  [0.1*x if x>0 else 10*x for x in p0[:-2]] + [0,min(self.temps)+5]
-            high_bound    = [10*x if x>0 else 0.1*x for x in p0[:-2]] + [3140098,max(self.temps)-5] 
+            if tm_init < self.min_temp + 3:
+                tm_init = self.min_temp + 10
+
+            p0 = [init_dH, tm_init, self.bNs[index], self.bUs[index]]
+
+            if self.fit_kN:
+                p0.append(self.kNs[index])
+
+            if self.fit_kU:
+                p0.append(self.kUs[index])
+
+            if self.fit_qN:
+                p0.append(self.qNs[index])
+
+            if self.fit_qU:
+                p0.append(self.qUs[index])
+
+            low_bound  = [0,  self.min_temp+3] +  [-np.inf for _ in p0[:-2]]
+            high_bound = [600,self.max_temp-3] +  [ np.inf for _ in p0[:-2]]
 
             initial_estimates.append(p0)
             low_bounds.append(low_bound)
             high_bounds.append(high_bound)
 
-        self.fit_model_and_fill_params_and_errors(model,initial_estimates,low_bounds,
-            high_bounds,fit_algorithm)
+        self.fit_model_and_fill_params_and_errors(
+            model,initial_estimates,low_bounds,
+            high_bounds,fit_algorithm
+        )
 
-        dHm_all,      Tm_all     = [p[4] for p in self.params_all],     [p[5] for p in self.params_all]
-        dHms_sd_all,  Tm_sd_all  = [p[4] for p in self.errors_abs_all], [p[5] for p in self.errors_abs_all]
+        dHm_all,      Tm_all     = [p[0] for p in self.params_all], [p[1] for p in self.params_all]
 
-        self.dG_std , self.dCp_component = get_EquilibriumTwoState_model_dGstd(dHm_all,Tm_all,self.cp)
-        self.T_onset = get_EquilibriumTwoState_model_Tons(dHm_all,Tm_all,dHms_sd_all,Tm_sd_all)
+        self.dG_std , self.dCp_component = get_two_state_deltaG(dHm_all, Tm_all, self.cp)
+        self.T_onset = get_two_state_tonset(dHm_all, Tm_all)
 
         return None
 
-    def EquilibriumThreeState(self,t1min,t1max,t2min,t2max,fit_algorithm="trf"):
+    def equilibrium_three_state(self,t1min=25,t1max=90,t2min=25,t2max=90,fit_algorithm="trf"):
 
         """
 
-        This model adds the presence of one short-lived protein state: native (N), intermediate (I) and unfolded (U). 
+        Fit an equilibrium three-state model (N ⇆ I ⇆ U) to the data.
 
-        Input
+        Args:
+            t1min (float) : Lower bound for the T1 parameter
+            t1max (float) : Upper bound for the T1 parameter
+            t2min (float) : Lower bound for the T2 parameter
+            t2max (float) : Upper bound for the T2 parameter
+            fit_algorithm (str): Curve fit algorithm passed to scipy (default 'trf').
 
-        t1min and t1max are the max and min accepted values for the parameter T1. (N ⇆ I)
-        t2min and t2max are the max and min accepted values for the parameter T2. (I ⇆ U)
+        Returns:
+            None
 
-        Result - we perform the fitting and assign the values to 
-
-        self.model_name,            self.params_name,               self.fitted_conditions_indexes  
-        self.params_all,            self.errors_abs_all,            self.errors_percentage_all      
-        self.fluo_predictions_all,  self.std_error_estimate_all,    self.parameters_far_from_bounds 
-
+        Notes:
+            Sets fit result attributes including dG_comb_std and T_onset.
         """
 
-        params_name = ['kN', 'bN', 'kU', 'bU', 'kI', 'dHm1', 'T1', 'dHm2', 'T2']
+        model, params_name = get_fit_fx_three_state_signal_fit(
+            fit_kN=self.fit_kN,
+            fit_kU=self.fit_kU,
+            fit_qN=self.fit_qN,
+            fit_qU=self.fit_qU,
+            type = "equilibrium"
+        )
 
         self.initialize_model("EquilibriumThreeState",params_name)
 
-        minT, maxT = np.min(self.temps), np.max(self.temps)
+        t1min = temperature_to_kelvin(t1min)
+        t1max = temperature_to_kelvin(t1max)
 
-        bStart = self.bNs + self.kNs * minT
-        bEnd   = self.bUs + self.kUs * maxT
+        t2min = temperature_to_kelvin(t2min)
+        t2max = temperature_to_kelvin(t2max)
 
-        self.init_KIs = (bStart + bEnd) / 2
-
-        def model(T, kN, bN, kU, bU, kI, dHm1, T1, dHm2, T2):
-
-            return (kN * T + bN + kI * np.exp(dHm1 / R_gas_constant * (1 / T1 - 1 / T)) + (kU * T + bU)*
-                np.exp(dHm1 / R_gas_constant * (1 / T1 - 1 / T)) * np.exp(dHm2 / R_gas_constant * (1 / T2 - 1 / T))) / (1 + 
-                np.exp(dHm1 / R_gas_constant * (1 / T1 - 1 / T)) + np.exp(dHm1 / R_gas_constant * (1 / T1 - 1 / T)) *  
-                np.exp(dHm2 / R_gas_constant * (1 / T2 - 1 / T)))
-
-        init_dH = 60000
+        init_dH = 80 # kcal/mol
 
         low_bounds        = []
         high_bounds       = []
@@ -1461,17 +1956,30 @@ class DSF_molten_prot_fit:
 
         for index in range(self.fluo.shape[1]):
 
-            p0 = (self.kNs[index], self.bNs[index], self.kUs[index], self.bUs[index],self.init_KIs[index], init_dH, temp1_init, init_dH, temp2_init)
+            p0 = [
+                init_dH,
+                temp1_init,
+                init_dH,
+                temp2_init,
+                self.bNs[index],
+                self.bUs[index],
+                self.bIs[index]
+            ]
 
-            low_bound     =  [0.1*x if x>0 else 10*x for x in p0[:-5]] 
-            low_bound    +=  [0,0,t1min,0,t2min]
+            if self.fit_kN:
+                p0.append(self.kNs[index])
 
-            high_bound    = [10*x if x>0 else 0.1*x for x in p0[:-5]] 
+            if self.fit_kU:
+                p0.append(self.kUs[index])
 
-            high_bound   += [100,3140098,t1max,3140098,t2max] 
+            if self.fit_qN:
+                p0.append(self.qNs[index])
 
-            low_bound[4]  = low_bound[4]  - np.abs(bStart[index]) - np.abs(bEnd[index])
-            high_bound[4] = high_bound[4] + np.abs(bStart[index]) + np.abs(bEnd[index])
+            if self.fit_qU:
+                p0.append(self.qUs[index])
+
+            low_bound  = [5, t1min,5,t2min]    +  [-np.inf for _ in p0[:-4]]
+            high_bound = [600,t1max,600,t2max] +  [ np.inf for _ in p0[:-4]]
 
             initial_estimates.append(p0)
             low_bounds.append(low_bound)
@@ -1479,58 +1987,71 @@ class DSF_molten_prot_fit:
 
         self.fit_model_and_fill_params_and_errors(model,initial_estimates,low_bounds,high_bounds,fit_algorithm)
 
-        dHm1_all,      Tm1_all     = [p[5] for p in self.params_all],     [p[6] for p in self.params_all]
-        dHms1_sd_all,  Tm1_sd_all  = [p[5] for p in self.errors_abs_all], [p[6] for p in self.errors_abs_all]
-        dHm2_all,      Tm2_all     = [p[7] for p in self.params_all],     [p[8] for p in self.params_all]
+        dHm1_all,      Tm1_all     = [p[0] for p in self.params_all], [p[1] for p in self.params_all]
+        dHm2_all,      Tm2_all     = [p[2] for p in self.params_all], [p[3] for p in self.params_all]
 
-        self.T_onset      = get_EquilibriumTwoState_model_Tons(dHm1_all,Tm1_all,dHms1_sd_all,Tm1_sd_all)
-        self.dG_comb_std  = get_EquilibriumThreeState_model_dG_comb_std(dHm1_all,Tm1_all,dHm2_all,Tm2_all)
+        self.T_onset      = get_two_state_tonset(dHm1_all, Tm1_all)
+        self.dG_comb_std  = get_eq_three_state_combined_deltaG(dHm1_all, Tm1_all, dHm2_all, Tm2_all)
        
         return None
 
-
-    def EmpiricalTwoState(self,fit_algorithm="trf",onset_threshold=0.01):
-
-        """
-
-        This model is similar to the Equilibrium two-state, but instead of enthalpy of unfolding, it uses the descriptive parameter Tonset 
-        to describe the steepness of the fluorescence curve. 
-
-        Input - float onset_threshold (should be between 0 and 1, i.e, 0.01 means that the fitted T_onset will be
-        temperature at which 1 % of the protein is unfolded)
-
-        Result - we perform the fitting and assign the values to 
-
-        self.model_name,            self.params_name,               self.fitted_conditions_indexes  
-        self.params_all,            self.errors_abs_all,            self.errors_percentage_all      
-        self.fluo_predictions_all,  self.std_error_estimate_all,    self.parameters_far_from_bounds 
+    def empirical_two_state(self,fit_algorithm="trf",onset_threshold=0.01):
 
         """
 
-        params_name = ['kN', 'bN', 'kU', 'bU', 'T_onset', 'Tm']
+        Fit an empirical two-state model using Tonset to describe transition steepness.
+
+        Args:
+            fit_algorithm (str): Optimization method for curve_fit (default 'trf').
+            onset_threshold (float): Fraction unfolded that defines Tonset (default 0.01).
+
+        Returns:
+            None
+
+        Notes:
+            Sets fit attributes and computes an empirical score.
+        """
+
+        model, params_name = get_fit_fx_two_state_signal_fit(
+            fit_kN=self.fit_kN,
+            fit_kU=self.fit_kU,
+            fit_qN=self.fit_qN,
+            fit_qU=self.fit_qU,
+            type = "empirical"
+        )
+
         self.initialize_model("EmpiricalTwoState",params_name)
 
-        def model(T, kN, bN, kU, bU, T_onset, Tm):
-
-            return (kN * T+ bN+ (kU * T + bU)* np.exp((T - Tm)*
-                np.log(onset_threshold / (1 - onset_threshold)) / (T_onset - Tm))) / (1 + 
-                np.exp((T - Tm)* np.log(onset_threshold / (1 - onset_threshold))/ (T_onset - Tm)))
-
         low_bounds        = []
         high_bounds       = []
         initial_estimates = []
 
         for index in range(self.fluo.shape[1]):
 
-            tm_init = self.tms_initial[index]
+            tm_init = self.tms_from_deriv[index]
 
-            p0 = (self.kNs[index], self.bNs[index], self.kUs[index], self.bUs[index], tm_init-7,tm_init)
+            if tm_init > self.max_temp - 3:
+                tm_init = self.max_temp - 10
 
-            low_bound_temp  = min(self.temps)+5
-            high_bound_temp = max(self.temps)-5
+            if tm_init < self.min_temp + 6:
+                tm_init = self.min_temp + 10
 
-            low_bound     =  [0.3*x if x>0 else 1.7*x for x in p0[:-2]] + [low_bound_temp-5,low_bound_temp]
-            high_bound    =  [1.7*x if x>0 else 0.3*x for x in p0[:-2]] + [high_bound_temp-5,high_bound_temp]
+            p0 = [tm_init-5, tm_init, self.bNs[index], self.bUs[index]]
+
+            if self.fit_kN:
+                p0.append(self.kNs[index])
+
+            if self.fit_kU:
+                p0.append(self.kUs[index])
+
+            if self.fit_qN:
+                p0.append(self.qNs[index])
+
+            if self.fit_qU:
+                p0.append(self.qUs[index])
+
+            low_bound  = [self.min_temp,  self.min_temp+3] + [-np.inf for _ in p0[:-2]]
+            high_bound = [self.max_temp-3,self.max_temp-3] + [ np.inf for _ in p0[:-2]]
 
             initial_estimates.append(p0)
             low_bounds.append(low_bound)
@@ -1538,52 +2059,48 @@ class DSF_molten_prot_fit:
 
         self.fit_model_and_fill_params_and_errors(model,initial_estimates,low_bounds,high_bounds,fit_algorithm)
 
-        T_onset_all, Tm_all = [p[4] for p in self.params_all], [p[5] for p in self.params_all]
+        T_onset_all, Tm_all = [p[0] for p in self.params_all], [p[1] for p in self.params_all]
 
-        self.score = get_EmpiricalTwoState_model_ranking(Tm_all,T_onset_all)
+        self.score = get_empirical_two_state_score(Tm_all, T_onset_all)
 
-        
         return None
 
-    def EmpiricalThreeState(self,t1min,t1max,t2min,t2max,fit_algorithm="trf",onset_threshold=0.01):
+    def empirical_three_state(self,t1min=20,t1max=70,t2min=40,t2max=90,fit_algorithm="trf",onset_threshold=0.01):
 
         """
 
-        This model adds the presence of one short-lived protein state to the
-        Empirical Two State: native (N), intermediate (I) and unfolded (U). 
+        Fit an empirical three-state model using Tonset1/Tonset2 to describe transitions.
 
-        Input
+        Args:
+            t1min (float): lower bound for the T1 parameter
+            t1max (float): upper bound for the T1 parameter
+            t2min (float): lower bound for the T2 parameter
+            t2max (float): upper bound for the T2 parameter
+            fit_algorithm (str): Optimization method for curve_fit (default 'trf').
+            onset_threshold (float): Fraction unfolded that defines Tonset (default 0.01).
 
-        t1min and t1max are the max and min accepted values for the parameter T1. (N ⇆ I)
-        t2min and t2max are the max and min accepted values for the parameter T2. (I ⇆ U)
+        Returns:
+            None
 
-        Result - we perform the fitting and assign the values to 
-
-        self.model_name,            self.params_name,               self.fitted_conditions_indexes  
-        self.params_all,            self.errors_abs_all,            self.errors_percentage_all      
-        self.fluo_predictions_all,  self.std_error_estimate_all,    self.parameters_far_from_bounds 
-
+        Notes:
+            Sets fit attributes and computes an empirical three-state score.
         """
 
-        params_name = ['kN', 'bN', 'kU', 'bU', 'kI', 'T_onset1', 'T1', 'T_onset2', 'T2']
+        model, params_name = get_fit_fx_three_state_signal_fit(
+            fit_kN=self.fit_kN,
+            fit_kU=self.fit_kU,
+            fit_qN=self.fit_qN,
+            fit_qU=self.fit_qU,
+            type = "empirical"
+        )
+
         self.initialize_model("EmpiricalThreeState",params_name)
 
-        minT, maxT = np.min(self.temps), np.max(self.temps)
+        t1min = temperature_to_kelvin(t1min)
+        t1max = temperature_to_kelvin(t1max)
 
-        bStart = self.bNs + self.kNs * minT
-        bEnd   = self.bUs + self.kUs * maxT
-
-        self.init_KIs = (bStart + bEnd) / 2
-
-        def model(T, kN, bN, kU, bU, kI, T_onset1, T1, T_onset2, T2):
-
-            return (kN * T+ bN+ kI* np.exp((T - T1)*
-                np.log(onset_threshold / (1 - onset_threshold))/ (T_onset1 - T1))+ 
-            (kU * T + bU)*np.exp((T - T2)* np.log(onset_threshold / (1 - onset_threshold))/ (T_onset2 - T2))* 
-            np.exp((T - T1)* np.log(onset_threshold / (1 - onset_threshold))/ (T_onset1 - T1))) / (1+ 
-            np.exp((T - T1)* np.log(onset_threshold / (1 - onset_threshold))/ (T_onset1 - T1))+ 
-            np.exp((T - T2)* np.log(onset_threshold / (1 - onset_threshold))/ (T_onset2 - T2))* 
-            np.exp((T - T1)* np.log(onset_threshold / (1 - onset_threshold))/ (T_onset1 - T1)))
+        t2min = temperature_to_kelvin(t2min)
+        t2max = temperature_to_kelvin(t2max)
 
         low_bounds        = []
         high_bounds       = []
@@ -1594,14 +2111,30 @@ class DSF_molten_prot_fit:
 
         for index in range(self.fluo.shape[1]):
 
-            p0 = (self.kNs[index], self.bNs[index], self.kUs[index], self.bUs[index], 
-                self.init_KIs[index],temp1_init-8,temp1_init,temp2_init-8,temp2_init)
+            p0 = [
+                temp1_init-10,
+                temp1_init,
+                temp2_init-10,
+                temp2_init,
+                self.bNs[index],
+                self.bUs[index],
+                self.bIs[index]
+            ]
 
-            low_bound     =  [0.1*x if x>0 else 10*x for x in p0[:-5]]  + [0]       + [t1min-5,t1min,t2min-5,t2min]
-            high_bound    =  [10*x  if x>0 else 0.1*x for x in p0[:-5]] + [1000]    + [t1max-5,t1max,t2max-5,t2max]
+            if self.fit_kN:
+                p0.append(self.kNs[index])
 
-            low_bound[4]  = low_bound[4]  - np.abs(bStart[index]) - np.abs(bEnd[index])
-            high_bound[4] = high_bound[4] + np.abs(bStart[index]) + np.abs(bEnd[index])
+            if self.fit_kU:
+                p0.append(self.kUs[index])
+
+            if self.fit_qN:
+                p0.append(self.qNs[index])
+
+            if self.fit_qU:
+                p0.append(self.qUs[index])
+
+            low_bound  = [t1min-8,t1min,t2min-8,t2min] +  [-np.inf for _ in p0[:-4]]
+            high_bound = [t1max-8,t1max,t2max-8,t2max] +  [ np.inf for _ in p0[:-4]]
 
             initial_estimates.append(p0)
             low_bounds.append(low_bound)
@@ -1609,63 +2142,63 @@ class DSF_molten_prot_fit:
 
         self.fit_model_and_fill_params_and_errors(model,initial_estimates,low_bounds,high_bounds,fit_algorithm)
 
-        T_onset1_all,      T1_all     = [p[5] for p in self.params_all],     [p[6] for p in self.params_all]
-        T_onset2_all,      T2_all     = [p[7] for p in self.params_all],     [p[8] for p in self.params_all]
+        T_onset1_all,      T1_all     = [p[0] for p in self.params_all], [p[1] for p in self.params_all]
+        T_onset2_all,      T2_all     = [p[2] for p in self.params_all], [p[3] for p in self.params_all]
 
-        self.T_eucl_comb = get_EmpiricalThreeState_model_T_eucl_comb(T_onset1_all,T1_all,T_onset2_all,T2_all)
+        self.T_eucl_comb = get_empirical_three_state_score(T_onset1_all, T1_all, T_onset2_all, T2_all)
 
         return None
 
-    def IrreversibleTwoState(self,fit_algorithm="trf"):
+    def irreversible_two_state(self,fit_algorithm="trf"):
 
         """
-        This model assumes that the protein only exists in the native (N) and unfolded (U) state and that the unfolding reaction is irreversible.
+        Fit an irreversible two-state model using an ODE for fraction native versus temperature.
+
+        Args:
+            fit_algorithm (str): Curve-fit algorithm used by scipy (default 'trf').
+
+        Returns:
+            None
+
+        Notes:
+            Sets fit attributes and computes a pkd-like quantity (self.pkd).
         """
 
-        params_name = ['kN', 'bN', 'kU', 'bU', 'Tf', 'Ea']
+        model, params_name = get_fit_fx_two_state_signal_fit(
+            fit_kN=self.fit_kN,
+            fit_kU=self.fit_kU,
+            fit_qN=self.fit_qN,
+            fit_qU=self.fit_qU,
+            type = "irreversible"
+        )
+
         self.initialize_model("IrreversibleTwoState",params_name)
-       
-        def model(T, kN, bN, kU, bU, Tf, Ea):
-
-            xn = 1  # y0 (starting condition) for differential equation
-
-            def ode(T, xn, Tf, Ea):
-                """
-                ordinary differential equation for fraction native versus temperature
-                dxn/dT = -1/v*k(T)*xn
-
-                start_value xn - should be always 1 because at the start of assay we assume everything is folded
-                xn - fraction native (xn + xagg = 1)
-                k(T) - temperature-dependent rate constant of aggregation
-                """
-                return -1 / self.scan_rate * arrhenius(T, Tf, Ea) * xn
-
-            """
-            Returns aggregation signal at given temperature
-            k, b - baseline parameters (N or U state)
-            xn, xu - fraciton native/unfolded, xn + xu = 1
-
-            Signal(T) = kU*T + bU + (kN*T + bN - kU*T - bU) * xn
-            """
-            # step 1: numerically integrate agg_ode for given parameters - gives xn(T)
-            ivp_result = solve_ivp(ode,t_span=[min(T), max(T)],t_eval=T,y0=[1],args=(Tf, Ea),method="BDF")
-
-            # step 2: Return the result of the signal
-            # return kU*t + bU + (kN*t + bN - kU*t - bU)*ivp_result.sol(t)[0]
-            return kU * T + bU + (kN * T + bN - kU * T - bU) * ivp_result.y[0, :]
 
         low_bounds        = []
         high_bounds       = []
         initial_estimates = []
-        init_Tf = min(self.temps) + (max(self.temps) - min(self.temps)) / 2
-        init_Ea = 50000
+
+        init_Tf = self.min_temp + (self.max_temp - self.min_temp) / 2
+        init_Ea = 20 # in kcal/mol
 
         for index in range(self.fluo.shape[1]):
 
-            p0 = (self.kNs[index], self.bNs[index], self.kUs[index], self.bUs[index], init_Tf,init_Ea)
+            p0 = [init_Tf, init_Ea, self.bNs[index], self.bUs[index]]
 
-            low_bound     =  [0.6*x if x>0 else 1.4*x for x in p0[:-2]] + [min(self.temps)-100,0]
-            high_bound    =  [1.4*x if x>0 else 0.6*x for x in p0[:-2]] + [max(self.temps)+100,init_Ea*1E4]
+            if self.fit_kN:
+                p0.append(self.kNs[index])
+
+            if self.fit_kU:
+                p0.append(self.kUs[index])
+
+            if self.fit_qN:
+                p0.append(self.qNs[index])
+
+            if self.fit_qU:
+                p0.append(self.qUs[index])
+
+            low_bound  = [self.min_temp-100, 1E-2] + [-np.inf for _ in p0[:-2]]
+            high_bound = [self.max_temp+100, 1E5]  + [ np.inf for _ in p0[:-2]]
 
             initial_estimates.append(p0)
             low_bounds.append(low_bound)
@@ -1673,9 +2206,157 @@ class DSF_molten_prot_fit:
 
         self.fit_model_and_fill_params_and_errors(model,initial_estimates,low_bounds,high_bounds,fit_algorithm)
 
-        Tf_all, Ea_all = [p[4] for p in self.params_all], [p[5] for p in self.params_all]
+        Tf_all, Ea_all = [p[0] for p in self.params_all], [p[1] for p in self.params_all]
 
-        self.pkd = get_IrrevTwoState_pkd(Tf_all,Ea_all)
+        self.pkd = get_irrev_two_state_pkd(Tf_all, Ea_all)
 
         return None
 
+    def filter_by_relative_error(self,threshold_percentage):
+
+        """
+        Filter fitted conditions based on relative error threshold.
+
+        Args:
+            threshold_percentage (float): Maximum allowed relative error percentage for all parameters.
+
+        Returns:
+
+            boolean_mask (list): List of booleans indicating which conditions meet the error criteria.
+
+        """
+
+        boolean_mask = []
+
+        for errors_percentage in self.errors_percentage_all:
+
+            condition = all(err <= threshold_percentage for err in errors_percentage)
+
+            boolean_mask.append(condition)
+
+        return boolean_mask
+
+    def filter_by_fitting_std_error(self,threshold_std_error):
+
+        """
+        Filter fitted conditions based on fitting standard error threshold.
+
+        Args:
+            threshold_std_error (float): Maximum allowed standard error of the fit.
+
+        Returns:
+
+            boolean_mask (list): List of booleans indicating which conditions meet the error criteria.
+
+        """
+
+        boolean_mask = []
+
+        for std_error in self.std_error_estimate_all:
+
+            boolean_mask.append(std_error <= threshold_std_error)
+
+        return boolean_mask
+
+    def filter_by_param_values(self,param_name,low_value,high_value):
+
+        """
+        Filter fitted conditions based on parameter value range.
+
+        Args:
+            param_name (str): Name of the parameter to filter on.
+            low_value (float): Minimum acceptable value for the parameter.
+            high_value (float): Maximum acceptable value for the parameter.
+
+        Returns:
+
+            boolean_mask (list): List of booleans indicating which conditions meet the parameter criteria.
+
+        """
+
+        if param_name not in self.params_name:
+            raise ValueError(f"Parameter '{param_name}' not found in fitted parameters.")
+
+        param_index = self.params_name.index(param_name)
+
+        boolean_mask = []
+
+        for params in self.params_all:
+
+            param_value = params[param_index]
+
+            condition = (param_value >= low_value) and (param_value <= high_value)
+
+            boolean_mask.append(condition)
+
+        return boolean_mask
+
+    def update_conditions_after_filtering(self,filtered_indexes):
+
+        """
+        Update fitted conditions and associated data after filtering.
+
+        Args:
+            filtered_indexes (list): List of indexes of conditions to retain.
+        Returns:
+            None
+        Notes:
+            Updates self.fitted_conditions, self.fitted_fluo, and all fit result attributes.
+        """
+
+        self.fitted_conditions_indexes = [self.fitted_conditions_indexes[i] for i in filtered_indexes]
+        self.fitted_conditions        = [self.fitted_conditions[i] for i in filtered_indexes]
+        self.fitted_fluo              = self.fitted_fluo[:,filtered_indexes]
+
+        self.params_all               = [self.params_all[i] for i in filtered_indexes]
+        self.errors_abs_all           = [self.errors_abs_all[i] for i in filtered_indexes]
+        self.errors_percentage_all    = [self.errors_percentage_all[i] for i in filtered_indexes]
+        self.fluo_predictions_all     = [self.fluo_predictions_all[i] for i in filtered_indexes]
+        self.std_error_estimate_all   = [self.std_error_estimate_all[i] for i in filtered_indexes]
+
+        return None
+
+
+test = False
+
+if test:
+
+    import matplotlib.pyplot as plt
+
+    mp = DsfFitter()
+    mp.load_nano_dsf_xlsx("/home/os/Downloads/demo.xlsx")
+
+    mp.set_signal("350nm")
+
+    n = 3
+
+    bool_mask = [True for _ in range(n)] + [False for _ in range(mp.fluo.shape[1]-n)]
+
+    mp.select_conditions(bool_mask)
+
+    mp.estimate_fluo_derivates()
+
+    mp.cp = 0
+    mp.scan_rate = 1
+
+    #mp.irreversible_two_state()
+    #print(mp.model_name)
+    #print(mp.params_all[2])
+
+    for combi in [(0,0),(1,1),(2,2)]:
+
+        mp.set_baseline_types(combi[0],combi[1])
+        mp.estimate_baselines_parameters()
+        mp.empirical_two_state()
+
+        mp.filter_by_relative_error(50)
+
+        for index in range(mp.fitted_fluo.shape[1]):
+
+            plt.plot(mp.temps,mp.fitted_fluo[:,index],label=mp.conditions[index],color='black',alpha=0.3)
+            plt.plot(mp.temps,mp.fluo_predictions_all[index],label="fit",color='red')
+
+        plt.legend()
+        plt.show()
+
+    quit()

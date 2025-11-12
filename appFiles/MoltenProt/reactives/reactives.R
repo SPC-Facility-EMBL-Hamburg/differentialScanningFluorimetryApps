@@ -6,7 +6,9 @@ reactives <- reactiveValues(
   include_vector                 = NULL,  # To know which conditions to plot         (for the SUPR DSF data)
   full_spectra                   = FALSE, # Full spectra instead of fixed wavelength (for the SUPR DSF data)
   spectra_panel_names            = NULL,
-  reportDir                      = NULL
+  reportDir                      = NULL,
+  model_is_two_state             = NULL,
+  model_name                     = NULL
   )
 
 output$data_loaded             <- reactive({
@@ -18,9 +20,15 @@ output$report_was_created             <- reactive({
 output$full_spectra             <- reactive({
   return(reactives$full_spectra)})
 
+output$model_is_two_state  <- reactive( { return(reactives$model_is_two_state) } )
+
+output$model_name  <- reactive( { return(reactives$model_name) } )
+
 outputOptions(output, "data_loaded"       , suspendWhenHidden = FALSE)
 outputOptions(output, "report_was_created", suspendWhenHidden = FALSE)
 outputOptions(output, "full_spectra"      , suspendWhenHidden = FALSE)
+outputOptions(output, "model_is_two_state", suspendWhenHidden = FALSE)
+outputOptions(output, "model_name", suspendWhenHidden = FALSE)
 
 resetConditionsTable <- function() {
 
@@ -162,8 +170,8 @@ observeEvent(input$FLf,{
 
         fileType <- detect_txt_file_type(input$FLf$datapath)
         
-        if (fileType == 'MX3005P')     dsf$load_Agilents_MX3005P_qPCR_txt(input$FLf$datapath)
-        if (fileType == 'QuantStudio') dsf$load_QuantStudio_txt(input$FLf$datapath)
+        if (fileType == 'MX3005P')     dsf$load_agilent_mx3005p_qPCR_txt(input$FLf$datapath)
+        if (fileType == 'QuantStudio') dsf$load_quantstudio_txt(input$FLf$datapath)
         
       }
       
@@ -193,7 +201,7 @@ observeEvent(input$FLf,{
         sheet_names <- get_sheet_names_of_xlsx(input$FLf$datapath)
         # ... Load the data to the python class ...
         if ("RFU" %in% sheet_names)  {
-          dsf$load_Thermofluor_xlsx(input$FLf$datapath)
+          dsf$load_thermofluor_xlsx(input$FLf$datapath)
         } else if ("Data Export" %in% sheet_names || "melting-scan" %in% sheet_names) {
           dsf$load_panta_xlsx(input$FLf$datapath)
         } else if ("Profiles_raw" %in% sheet_names) {
@@ -220,7 +228,7 @@ observeEvent(input$FLf,{
           reactives$full_spectra   <- TRUE
           reactives$include_vector <- rep(T,length(dsf$conditions))
         } else {
-          dsf$load_nanoDSF_xlsx(input$FLf$datapath,sheet_names)
+          dsf$load_nano_dsf_xlsx(input$FLf$datapath,sheet_names)
         }
       
       }
@@ -234,21 +242,22 @@ observeEvent(input$FLf,{
       reactives$global_max_conditions          <- findClosestHigherValue(nConditions)
       reactives$global_n_rows_conditions_table <- reactives$global_max_conditions / 4
 
-      tables <- get_renderRHandsontable_list(conditions,
-                                             reactives$global_n_rows_conditions_table)
-      
+      tables <- get_renderRHandsontable_list(
+        conditions,
+        reactives$global_n_rows_conditions_table)
+
       renderConditionsTable(tables)
       
       min_temp <- round(min(dsf$temps) - 273.15) # To degree celsius
       max_temp <- round(max(dsf$temps) - 273.15) # To degree celsius
-      
+
       dsf$estimate_fluo_derivates(input$SG_window2)
-      
+
       updateSliderInput(session,"sg_range",NULL,min = min_temp, max = max_temp,value = c(min_temp+3,max_temp-3))
       
       Sys.sleep(0.5)
       reactives$data_loaded             <- TRUE
-      
+
     }})
 },priority = 10)
 
@@ -316,10 +325,10 @@ observeEvent(input$show_colors_column,{
 
     # If the colors are now set to be hidden, we obtain them from the Tables
     if (!show_colors_column){
-        color_vector           <- as.character(condition_include_list$color_vector)
+        color_vector <- as.character(condition_include_list$color_vector)
     } else {
     # If the colors are shown, we use the colors from the dsf object
-        color_vector           <- dsf$all_colors
+        color_vector <- dsf$all_colors
     }
 
 
@@ -336,7 +345,7 @@ observeEvent(input$show_colors_column,{
 })
 
 modify_fluo_temp_cond <- reactive({
-  
+
   nconditions <- length(dsf$conditions_original)
   
   condition_include_list <- get_include_vector(input$table1,input$table2,input$table3,input$table4,
@@ -347,7 +356,7 @@ modify_fluo_temp_cond <- reactive({
   include_vector         <- as.logical(condition_include_list$include_vector)
   series_vector          <- condition_include_list$series_vector
 
-  color_vector <- condition_include_list$color_vector
+  color_vector <- as.character(condition_include_list$color_vector)
 
   dsf$set_signal(input$which)
   
@@ -359,8 +368,7 @@ modify_fluo_temp_cond <- reactive({
   right_bound   <-   min( sg_range_max_kelvin,max(dsf$temps) )
   
   # ... Modify in place the python class fluorescence signal according to the selected signal window range ...
-  dsf$fluo  <- filter_fluo_by_temp(dsf$fluo,dsf$temps,left_bound,right_bound)
-  dsf$temps <- filter_temp_by_temp(dsf$temps,left_bound,right_bound)
+  dsf$filter_by_temperature(left_bound,right_bound)
   
   if (input$selected_cond_series != "All") {
     include_vector         <- include_vector & (series_vector == input$selected_cond_series)
@@ -369,36 +377,20 @@ modify_fluo_temp_cond <- reactive({
   reactives$include_vector <- include_vector
 
   # ... use only the conditions selected by the user ...
-  dsf$conditions         <- conditions_vector[include_vector]
+  dsf$set_conditions(conditions_vector)
 
-  if (!is.null(color_vector)) {
-
-    # Set vector for all colors
-    dsf$all_colors <- color_vector
-
-    color_vector <- as.character(condition_include_list$color_vector)
-    dsf$colors   <- color_vector[include_vector]
-
-  } else {
-    dsf$colors <- dsf$all_colors[include_vector]
-  }
-
-  # Convert to list if we have a string (only one condition)
-  if (length(dsf$conditions) == 1) {
-      dsf$conditions <- list(dsf$conditions)
-      dsf$colors     <- list(dsf$colors)
-  }
+  dsf$set_colors(color_vector)
 
   # Return NULL if no conditions are selected
   if (all(!include_vector))   return(NULL)
   
-  dsf$select_signal_columns(c(include_vector))
-  
+  dsf$select_conditions(include_vector)
+
   median_filter <- get_median_filter(input$median_filter)
   if (median_filter > 0) {dsf$median_filter(median_filter)}
-  
+
   dsf$fluo <- normalize_fluo_matrix_by_option(input$normalization_type,dsf$fluo,dsf$temps)
-  
+
   dsf$estimate_fluo_derivates(input$SG_window2)
   
   return(condition_include_list$conditions_vector)
@@ -514,45 +506,94 @@ output$tm_derivative <- renderPlotly({
 
 # Fit when the user presses the button
 fluo_fit_data <- eventReactive(input$btn_cal, {
-  
+
+  model_selected <- input$model_selected
+
+  orders <- list(
+    "constant"  = 0,
+    "linear"    = 1,
+    "quadratic" = 2
+  )
+
+  poly_order_native <- orders[[input$native_dependence]]
+  poly_order_unfolded <- orders[[input$unfolded_dependence]]
+
+  dsf$set_baseline_types(poly_order_native,poly_order_unfolded)
+
   #req(fluo_signal_loaded())
   req(input$table1)
   # check we have data to fit
   if (ncol(dsf$fluo)>0)   {
     
     dsf$estimate_baselines_parameters(input$temp_range_baseline_estimation)
-    
+
+    reactives$model_is_two_state <- grepl('TwoState',input$model_selected)
+    reactives$model_name <- input$model_selected
+
     withBusyIndicatorServer("btn_cal",{
+
       # ... Fit according to selection ...
-      if (input$model_selected == "EquilibriumTwoState"  )   {
-        dsf$cp <- input$delta_cp * 4184 # convert units
-        dsf$EquilibriumTwoState()}
+      if (model_selected == "EquilibriumTwoState"  )   {
+
+        dsf$cp <- input$delta_cp
+
+        dsf$equilibrium_two_state()
+      }
       
-      if (input$model_selected == "EquilibriumThreeState")   {
-        dsf$EquilibriumThreeState(input$t1min+273.15,input$t1max+273.15,
-                                  input$t2min+273.15,input$t2max+273.15) # To kelvin 
-        }
+      if (model_selected == "EquilibriumThreeState")   {
+
+        dsf$equilibrium_three_state(
+          input$t1min,input$t1max,
+          input$t2min,input$t2max
+        )
+      }
       
-      if (input$model_selected == "EmpiricalTwoState"    )   {dsf$EmpiricalTwoState()     }
+      if (model_selected == "EmpiricalTwoState")  dsf$empirical_two_state()
       
-      if (input$model_selected == "EmpiricalThreeState"  )   {
-        dsf$EmpiricalThreeState(input$t1min+273.15,input$t1max+273.15,
-                                input$t2min+273.15,input$t2max+273.15)   
-        }
+      if (model_selected == "EmpiricalThreeState")   {
+
+        dsf$empirical_three_state(
+          input$t1min,input$t1max,
+          input$t2min,input$t2max
+        )
+
+      }
       
-      if (input$model_selected == "IrreversibleTwoState" )   {
+      if (model_selected == "IrreversibleTwoState" )   {
         dsf$scan_rate <- input$scan_rate
-        dsf$IrreversibleTwoState()  }
+        dsf$irreversible_two_state()
+      }
+
     })
     
-    fluo_m           <- make_list_df4plot(dsf$fitted_fluo,dsf$fitted_conditions,
-                                          dsf$temps,global_chunck_n)
+    fluo_m <- make_list_df4plot(
+      dsf$fitted_fluo,
+      dsf$fitted_conditions,
+      dsf$temps,
+      global_chunck_n
+    )
     
     if (length(dsf$fluo_predictions_all) == 0 ) return(NULL)
-    
+
+    max_std_err <- max(unlist(dsf$std_error_estimate_all))
+
+    updateNumericInput(
+        session,
+        "fitting_std_threshold",
+        value = signif(max_std_err*1.01,3),
+        min   = 0,
+        max   = max_std_err*1.02,
+        step  = signif(max_std_err/100,3)
+    )
+
     fluo_pred_matrix <- t(do.call(rbind,dsf$fluo_predictions_all))
-    fluo_m_pred      <- make_list_df4plot(fluo_pred_matrix,dsf$fitted_conditions,
-                                          dsf$temps,global_chunck_n)
+
+    fluo_m_pred <- make_list_df4plot(
+        fluo_pred_matrix,
+        dsf$fitted_conditions,
+        dsf$temps,
+        global_chunck_n
+        )
     
     return(list("fluo_fit_real"=fluo_m,"fluo_fit_pred"=fluo_m_pred))
     
@@ -600,8 +641,12 @@ outputOptions(output, "three_state_model_selected", suspendWhenHidden = FALSE)
 
 output$params_table <- renderTable({
   req(fluo_fit_data())
-  get_sorted_params_table(dsf$params_all,dsf$fitted_conditions,
-                          global_chunck_n,dsf$params_name,input$sort_table_parameter)
+
+  get_sorted_params_table(
+    dsf$params_all,dsf$fitted_conditions,
+    global_chunck_n,dsf$params_name,
+    input$sort_table_parameter
+    )
 })
 
 output$params_table_errors <- renderTable({
@@ -654,8 +699,14 @@ output$fluo_residuals_plot <- renderPlot({
   real_data  <- fluo_fit_data()$fluo_fit_real
   model_data <- fluo_fit_data()$fluo_fit_pred
   
-  p <- plot_fluorescence_residuals(real_data,model_data,selected,dsf$std_error_estimate_all,
-                                   dsf$fitted_conditions)
+  p <- plot_fluorescence_residuals(
+    real_data,
+    model_data,
+    selected,
+    dsf$std_error_estimate_all,
+    dsf$fitted_conditions
+  )
+
   return(p)
 }
 )
@@ -665,21 +716,62 @@ output$fluo_residuals_plot <- renderPlot({
 output$fitted_conditions_table <- renderTable({
   req(fluo_fit_data())
 
-  return(get_fitted_conditions_table(dsf$conditions,
-                                     dsf$fitted_conditions))
+  return(
+    get_fitted_conditions_table(
+    dsf$conditions,
+    dsf$fitted_conditions)
+    )
+
 })
+
 
 filter_conditions <- reactive({
   
   req(fluo_fit_data())
-  selected_indexes <- get_selected_conditions_index(dsf$fitted_conditions,
-                                                    input$sd_factor_bool,input$bs_factor_bool,
-                                                    input$far_from_bounds,
-                                                    dsf$errors_percentage_all,
-                                                    dsf$baseline_factor_all,
-                                                    dsf$parameters_far_from_bounds)
-  
+
+  if (input$sd_factor_bool) {
+
+    selected_indexes_1 <- dsf$filter_by_relative_error(input$rel_error_threshold)
+
+  } else {
+
+      selected_indexes_1 <- rep(TRUE,length(dsf$fitted_conditions))
+
+  }
+
+  selected_indexes_2 <- dsf$filter_by_fitting_std_error(input$fitting_std_threshold)
+
+  selected_indexes <- unlist(selected_indexes_1) & unlist(selected_indexes_2)
+
+  if (reactives$model_name %in% c("EmpiricalTwoState","EquilibriumTwoState")) {
+
+    selected_indexes_to_add <- dsf$filter_by_param_values(
+        'Tm',
+        input$lower_Tm_threshold+273.15, # to kelvin
+        input$upper_Tm_threshold+273.15
+    )
+
+    selected_indexes <- selected_indexes & unlist(selected_indexes_to_add)
+
+  }
+
+  if (reactives$model_name %in% c("EquilibriumTwoState")) {
+
+    selected_indexes_to_add <- dsf$filter_by_param_values(
+        'DH',
+        input$lower_dh_threshold,
+        input$upper_dh_threshold
+    )
+
+    selected_indexes <- selected_indexes & unlist(selected_indexes_to_add)
+
+  }
+
+
+
+
   return(selected_indexes)
+
 })
 
 get_score_table <- reactive({
@@ -688,13 +780,13 @@ get_score_table <- reactive({
   req(fluo_fit_data())
   
   selected_indexes <- filter_conditions()
+
   if (!(any(selected_indexes))){return(NULL)}
   
   score_table <- NULL
   if ((dsf$model_name == "EquilibriumTwoState")) {
-    dG_std <- sapply(dsf$dG_std, function(x) x*0.000239006) # to kcal
-    
-    params_all  <- map2(dG_std,dsf$dCp_component,function(x,y) c(x,y))
+
+    params_all  <- map2(dsf$dG_std,dsf$dCp_component,function(x,y) c(x,y))
     params_name <- c("dg_std","cp_comp")
     
     score_table <- get_all_params_df(params_all[selected_indexes],
@@ -708,60 +800,56 @@ get_score_table <- reactive({
   
   if ((dsf$model_name == "EquilibriumThreeState")) {
     
-    params_all <- map(dsf$dG_comb_std,function(x) c(x*0.000239006,99)) # to kcal, 99 is a place holder
-    params_name <- c("score","temp_value")
+    params_name <- c("score")
     
-    score_table <- get_all_params_df(params_all[selected_indexes],
+    score_table <- get_all_params_df(dsf$dG_comb_std[selected_indexes],
                                      dsf$fitted_conditions[selected_indexes],
                                      global_chunck_n,params_name)
     
     score_table$score    <-  as.numeric(score_table$score) 
-    score_table          <-  score_table %>% dplyr::arrange(score) %>% select(-temp_value)
+    score_table          <-  score_table %>% dplyr::arrange(score)
     colnames(score_table) <- c("ΔG_comb (25°C) (kcal/mol)","Condition")
     
   }
   
   if ((dsf$model_name == "EmpiricalTwoState")) {
     
-    params_all <- map(dsf$score,function(x) c(x,99))
-    params_name <- c("score","temp_value")
+    params_name <- c("score")
     
-    score_table <- get_all_params_df(params_all[selected_indexes],
+    score_table <- get_all_params_df(dsf$score[selected_indexes],
                                      dsf$fitted_conditions[selected_indexes],
                                      global_chunck_n,params_name)
     
     score_table$score    <-  as.numeric(score_table$score) 
-    score_table          <-  score_table %>% dplyr::arrange(-score) %>% select(-temp_value)
+    score_table          <-  score_table %>% dplyr::arrange(-score)
     colnames(score_table) <- c("sqrt( T_onset**2 + Tm**2 )","Condition")
     
   }
   
   if ((dsf$model_name == "EmpiricalThreeState")) {
     
-    params_all <- map(dsf$T_eucl_comb,function(x) c(x,99))
-    params_name <- c("score","temp_value")
+    params_name <- c("score")
     
-    score_table <- get_all_params_df(params_all[selected_indexes],
+    score_table <- get_all_params_df(dsf$T_eucl_comb[selected_indexes],
                                      dsf$fitted_conditions[selected_indexes],
                                      global_chunck_n,params_name)
     
     score_table$score    <-  as.numeric(score_table$score) 
-    score_table          <-  score_table %>% dplyr::arrange(-score) %>% select(-temp_value)
+    score_table          <-  score_table %>% dplyr::arrange(-score)
     colnames(score_table) <- c("sqrt( T_onset_1**2 + T1**2 ) + sqrt( T_onset_1**2 + T2**2 )","Condition")
     
   }
   
   if ((dsf$model_name == "IrreversibleTwoState")) {
     
-    params_all <- map(dsf$pkd,function(x) c(x,99))
-    params_name <- c("score","temp_value")
+    params_name <- c("score")
     
-    score_table <- get_all_params_df(params_all[selected_indexes],
+    score_table <- get_all_params_df(dsf$pkd[selected_indexes],
                                      dsf$fitted_conditions[selected_indexes],
                                      global_chunck_n,params_name)
     
     score_table$score    <-  as.numeric(score_table$score) 
-    score_table          <-  score_table %>% dplyr::arrange(-score) %>% select(-temp_value)
+    score_table          <-  score_table %>% dplyr::arrange(-score)
     colnames(score_table) <- c("pkd","Condition")
     
   }
@@ -781,8 +869,11 @@ output$score_table <- renderTable({
 observe({
   
   req(fluo_fit_data())
-  updateSelectInput(session, "select_plot_type",
-                    choices  = get_choices_result_plot(dsf$model_name))
+  updateSelectInput(
+    session,
+    "select_plot_type",
+    choices  = get_choices_result_plot(dsf$model_name)
+    )
   
 })
 
@@ -794,8 +885,10 @@ get_results_plot <- reactive({
   if (!(any(selected_indexes))){return(NULL)}
 
   # Get the value of the parameter Tm
-  if (input$select_plot_type %in% c("Unfolded fraction","The 25 highest Tms",
-                                    "The 25 highest Tms versus Tonset")) {
+  if (input$select_plot_type %in% c(
+    "Unfolded fraction",
+    "The 25 highest Tms",
+    "The 25 highest Tms versus Tonset")) {
     
     tm_position <- which(dsf$params_name == "Tm")  
     tms <- sapply(dsf$params_all, function(x) x[tm_position])
@@ -814,7 +907,7 @@ get_results_plot <- reactive({
   
   if (input$select_plot_type == "Unfolded fraction") {
     
-    dh_position <- which(dsf$params_name == "dHm")  
+    dh_position <- which(dsf$params_name == "DH")
     dhs <- sapply(dsf$params_all, function(x) x[dh_position])
     
     if (input$model_selected == "EquilibriumTwoState") {

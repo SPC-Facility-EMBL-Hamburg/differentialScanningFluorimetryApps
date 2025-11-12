@@ -11,7 +11,7 @@ source("server_files/plot_functions.R")
 function(input, output, session) {
   
   # ... Initialize python_nanoDSF class ...
-  dsf <- DSF_molten_prot_fit()
+  dsf <- DsfFitter()
   
   #welcome_message()
   

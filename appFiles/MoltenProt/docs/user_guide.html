@@ -117,11 +117,15 @@ the file <a href="RUBIC Buffer Screen (MD1-96) screen conditions.xlsx" download>
 
 $$
 \large{ 
-   \frac{k_nT+b_n+(k_uT+b_u)*exp(\frac{\Delta H_m}{R}(\frac{1}{T_m}-\frac{1}{T}))}{1 + exp(\frac{\Delta H_m}{R}(\frac{1}{T_m}-\frac{1}{T}))}
+   \frac{k_n \Delta T+b_n+(k_u \Delta T +b_u)*exp(\frac{\Delta H_m}{R}(\frac{1}{T_m}-\frac{1}{T}))}{1 + exp(\frac{\Delta H_m}{R}(\frac{1}{T_m}-\frac{1}{T}))}
    }
 $$
 
-    <p class="vf-intro__text">where $k_n$, $b_n$ are the slope and intercept of the pre-transition (native) baseline, $k_u$, $b_u$ are the slope and intercept of post-transition (unfolded) baseline, $R$ is the universal gas constant, and $\Delta H_m$ is enthalpy of unfolding at melting temperature $T_m$. After fitting, $\Delta G$ of unfolding at 25°C (298.15 K) is estimated using </p>
+    <p class="vf-intro__text">
+        where $k_n$, $b_n$ are the slope and intercept of the pre-transition (native) baseline,
+        $k_u$, $b_u$ are the slope and intercept of post-transition (unfolded) baseline, $R$ is the universal gas constant,
+        and $\Delta H_m$ is enthalpy of unfolding at melting temperature $T_m$. $\Delta T$ is the difference between the temperature T and the standard temperature 25°C.
+        After fitting, $\Delta G$ of unfolding at 25°C (298.15 K) is estimated using </p>
     
     $$
 \large{ 
@@ -169,11 +173,14 @@ $$
  
 $$
 \large{
-F(T)=\frac{k_n T + b_n + (k_u T + b_u)*exp(\frac{T-T_m*log(\frac{0.01}{0.99})}{T_{onset}-T_m})}{1+exp(\frac{T-T_m*log(\frac{0.01}{0.99})}{T_{onset}-T_m})}
+F(T)=\frac{k_n \Delta T + b_n + (k_u \Delta T + b_u)*exp(\frac{T-T_m*log(\frac{0.01}{0.99})}{T_{onset}-T_m})}{1+exp(\frac{T-T_m*log(\frac{0.01}{0.99})}{T_{onset}-T_m})}
 }
 $$
 
-    <p class="vf-intro__text">To asses stability we provide a score which is the distance from the origin (0,0) to the point ($T_m$, $T_{onset}$). This score assumes that $T_m$ and $T_{onset}$ are equally important for protein stability. The baseline separation factor is estimated in the same way as in the 'Equilibrium Two State' model.
+    <p class="vf-intro__text">
+        To assess the stability we provide a score which is the distance from the origin (0,0) to the point ($T_m$, $T_{onset}$).
+        This score assumes that $T_m$ and $T_{onset}$ are equally important for protein stability.
+        The baseline separation factor is estimated in the same way as in the 'Equilibrium Two State' model.
  </p>
 </div>
 
@@ -190,7 +197,7 @@ $$
  
 $$
 
-F(T)=\frac{k_n T + b_n+k_I *exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T}))+(k_u T + b_u) *exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T})) *exp(\frac{\Delta H_{m2}}{R}(\frac{1}{T_2}-\frac{1}{T})) }{1+exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T})) *exp(\frac{\Delta H_{m2}}{R}(\frac{1}{T_2}-\frac{1}{T}))}
+F(T)=\frac{k_n \Delta T + b_n+k_I *exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T}))+(k_u \Delta T + b_u) *exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T})) *exp(\frac{\Delta H_{m2}}{R}(\frac{1}{T_2}-\frac{1}{T})) }{1+exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T})) *exp(\frac{\Delta H_{m2}}{R}(\frac{1}{T_2}-\frac{1}{T}))}
 
 $$
 
@@ -198,7 +205,7 @@ $$
  </p>
  
  
-    <p class="vf-intro__text"> To asses stability we provide as score the free energy of unfolding extrapolated to 25°C, (sum of the free energy change for reactions N ⇆ I and I ⇆ U). 
+    <p class="vf-intro__text"> To assess the stability we provide as score the free energy of unfolding extrapolated to 25°C, (sum of the free energy change for reactions N ⇆ I and I ⇆ U).
  </p>
  
 </div>
@@ -216,7 +223,7 @@ $$
 
 $$
 
-F(T)=\frac{k_n T +b_n+k_I*exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})+(k_u T + b_u)*exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})*exp(\frac{(T-T_2)*log(\frac{0.01}{0.99})}{T_{onset2}-T_2})}{1+exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})*exp(\frac{(T-T_2)*log(\frac{0.01}{0.99})}{T_{onset2}-T_2})}
+F(T)=\frac{k_n \Delta T +b_n+k_I*exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})+(k_u \Delta T + b_u)*exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})*exp(\frac{(T-T_2)*log(\frac{0.01}{0.99})}{T_{onset2}-T_2})}{1+exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})*exp(\frac{(T-T_2)*log(\frac{0.01}{0.99})}{T_{onset2}-T_2})}
 
 $$
 
@@ -238,7 +245,7 @@ $$
 
 $$
 \large{
-F(T)=k_u T + b_u + (k_n T + b_n) * x_n(T)
+F(T)=k_u \Delta T + b_u + (k_n \Delta T + b_n) * x_n(T)
 }
 $$
 
@@ -267,7 +274,12 @@ $$
 
 <div id="Fitting" style="display:none">
   
-    <p class="vf-intro__text">Each fluorescence curve is individually fitted using non-linear least squares with the scipy package curve_fit function. Is is important for the fitting routine to select a temperature range (in the '1. Load Input' step) that covers only the vicinity of the transition(s) that is(are) going to be analyzed.  To obtain initial estimates of $k_n$, $b_n$, $k_u$ and $b_u$ the first / last data of the each curve is fitted to a linear function. The initial estimates are also used to provide fitting boundaries as ± 40 % of the initial values. For the other parameters, the boundaries used for the fitting are described in the following Table.</p>
+    <p class="vf-intro__text">
+        Each fluorescence curve is individually fitted using non-linear least squares with the scipy package curve_fit function.
+        It is important for the fitting routine to select a temperature range (in the '1. Load Input' step)
+        that covers only the vicinity of the transition(s) that is(are) going to be analyzed.
+        To obtain initial estimates of $k_n$, $b_n$, $k_u$ and $b_u$ the first / last data of each curve is fitted to a linear function.
+        The fitting boundaries used for the thermodynamic parameters are described in the following Table.</p>
 
 <p class="vf-intro__text"></p>
 
@@ -288,38 +300,38 @@ $$
     
     <tr class="vf-table__row">
       <td class="vf-table__cell">$T_m$</td>
-      <td class="vf-table__cell">Lowest temperature  + 6</td>
+      <td class="vf-table__cell">Lowest temperature + 6</td>
       <td class="vf-table__cell">Highest temperature - 6</td>
     </tr>
     
     <tr class="vf-table__row">
       <td class="vf-table__cell">$T_1$*</td>
-      <td class="vf-table__cell">Lowest temperature  + 5</td>
+      <td class="vf-table__cell">Lowest temperature + 5</td>
       <td class="vf-table__cell">Middle temperature</td>
     </tr>
     
     <tr class="vf-table__row">
       <td class="vf-table__cell">$T_2$*</td>
       <td class="vf-table__cell">Middle temperature</td>
-      <td class="vf-table__cell">Highest temperature  - 5</td>
+      <td class="vf-table__cell">Highest temperature - 5</td>
     </tr>    
     
     <tr class="vf-table__row">
       <td class="vf-table__cell">$T_{onset}$</td>
-      <td class="vf-table__cell">Lowest temperature  + 1</td>
-      <td class="vf-table__cell">Highest temperature  - 11</td>
+      <td class="vf-table__cell">Lowest temperature + 1</td>
+      <td class="vf-table__cell">Highest temperature - 11</td>
     </tr>
 
     <tr class="vf-table__row">
       <td class="vf-table__cell">$T_{onset1}$</td>
-      <td class="vf-table__cell">$T_1$ lower bound - 5 degrees</td>
-      <td class="vf-table__cell">$T_1$ higher bound - 5 degrees</td>
+      <td class="vf-table__cell">$T_1$ lower bound - 5</td>
+      <td class="vf-table__cell">$T_1$ higher bound - 5</td>
     </tr>
     
     <tr class="vf-table__row">
       <td class="vf-table__cell">$T_{onset2}$</td>
-      <td class="vf-table__cell">$T_2$ lower bound - 5 degrees</td>
-      <td class="vf-table__cell">$T_2$ higher bound - 5 degrees</td>
+      <td class="vf-table__cell">$T_2$ lower bound - 5</td>
+      <td class="vf-table__cell">$T_2$ higher bound - 5</td>
     </tr>
 
     <tr class="vf-table__row">
@@ -337,7 +349,8 @@ $$
   </tbody>
 </table>
 
-    <p class="vf-intro__text">*The boundaries of $T_1$ and $T_2$ can be changed by the user. The boundaries of $T_{onset1}$ and $T_{onset2}$ will be be modified accordingly.</p>
+    <p class="vf-intro__text">*The boundaries of $T_1$ and $T_2$ can be changed by the user.
+        The boundaries of $T_{onset1}$ and $T_{onset2}$ will be modified accordingly.</p>
 
 </div>
 

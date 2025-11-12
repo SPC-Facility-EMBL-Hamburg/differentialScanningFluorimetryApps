@@ -3,7 +3,7 @@ box(title = "Plot options", width = 6, solidHeader = T, status = "primary",
       
       column(4,p(HTML("<b>Type</b>"),
                  span(shiny::icon("info-circle"), id = "info_uu3-1"),
-                 selectInput("select_plot_type", NULL,c("None")),
+                 selectInput("select_plot_type", NULL,c("None"),selectize=FALSE),
                  tippy::tippy_this(elementId = "info_uu3-1",
                                    tooltip = "Select type of plot to display in the \"Results Plot\" panel",placement = "right"))),
       

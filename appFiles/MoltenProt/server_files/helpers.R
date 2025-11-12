@@ -246,9 +246,16 @@ get_params_df <- function(params,cond_vector,selected,chunck_n,params_names) {
   params_sel <- split_vec(1:length(cond_vector),chunck_n)[[selected]]
   #Transform params (list of vectors) to dataframe
   # where the rows match the conditions
-  
-  params     <- do.call(rbind, params)
-  params     <- data.frame(params)[params_sel,]
+
+  if (is.list(params)) {
+
+    params <- data.frame(do.call(rbind,params),check.names=FALSE)[params_sel,]
+
+  } else{
+
+    params <- data.frame("params"=params[params_sel],check.names=FALSE)
+
+  }
 
   colnames(params) <- params_names
   
@@ -257,7 +264,8 @@ get_params_df <- function(params,cond_vector,selected,chunck_n,params_names) {
   
   params$legend <- paste0(names4df)
   neworder <- unique(params$legend)
-  params <- dplyr::arrange(transform(params,legend=factor(legend,levels=neworder)),legend)
+
+  params   <- dplyr::arrange(transform(params,legend=factor(legend,levels=neworder)),legend)
   
   for (i in 1:length(params_names)) {
     
@@ -266,18 +274,17 @@ get_params_df <- function(params,cond_vector,selected,chunck_n,params_names) {
       if (colnames(params)[i] %in% c("Tm","T1","T2","T_onset","T_onset1","T_onset2","Tf")){
         params[,i] <- params[,i] - 273.15 # Convert kelvin to degree celsius
       }
-        
-      if (colnames(params)[i] %in% c("dHm","dHm1","dHm2","Ea")){
-        params[,i] <- params[,i] * 0.000239006 # Convert to joule to kcal
-      }
       
       params[,i] <- paste0(signif(params[,i],3))
+
     }
     
   }
  
   params <- params %>% select(-legend)
+
   return(params)
+
 }
 
 ## Join params df into one dataframe
@@ -395,10 +402,15 @@ get_choices_result_plot <- function(model_name) {
   return(choices)
 }
 
-get_fraction_unfolded_EquilTwoState <- function(dHm,Tm,temperature,R_gas_constant=8.314) {
+get_fraction_unfolded_EquilTwoState <- function(
+    dHm,
+    Tm,
+    temperature,
+    R_gas_constant=0.001987) {
   
   exp_value <- exp((1 / Tm - 1 / temperature) * dHm / R_gas_constant)
   fraction_unfolded <- exp_value / (1 + exp_value)
+
   return(fraction_unfolded)
   
 }
@@ -416,37 +428,3 @@ generate_tm_tonset_df <- function(conditions,tms,t_onset) {
   return(df)
   
 }
-
-
-## Get index of selected conditions according to 
-## baseline_separation_factor and std / fitted
-
-## sd_filter and baseline_factor_filter are booleans that determine if we apply the corresponding filters
-## baseline_factors is a list of values length 1
-## sds is error_percentage list: List of length k where k is the number of conditions
-## each element has length l where l is the number of parameter that the model has
-
-get_selected_conditions_index <- function(conditions,sd_filter,
-                                          baseline_factor_filter,
-                                          far_from_bounds_filter,
-                                          sds,baseline_factors,
-                                          parameters_far_from_bounds) {
-  
-  sds_indexes <- baseline_indexes <- rep(T,length(conditions))
-  
-  if (sd_filter) {sds_indexes <- unlist(lapply(sds, function(x) all(x<50)))}
-  
-  if (baseline_factor_filter) {baseline_indexes <- unlist(lapply(baseline_factors, function(x) x>0.5))}
-
-  selected_indexes <- unlist(map2(sds_indexes,baseline_indexes,function(x,y) x && y))
-  
-  if (far_from_bounds_filter) {
-    
-    selected_indexes <- unlist(map2(selected_indexes,parameters_far_from_bounds,function(x,y) x && y))
-    
-  }
-  
-  return(selected_indexes)
-  
-}
-

@@ -135,7 +135,7 @@ dsf_objects_from_xlsx_files <- function(xlsx_files) {
     } else if ("Profiles_raw" %in% sheet_names) {
       eval(parse(text=var_name))$load_tycho_xlsx(xlsx)
     } else {
-      eval(parse(text=var_name))$load_nanoDSF_xlsx(xlsx,sheet_names)
+      eval(parse(text=var_name))$load_nano_dsf_xlsx(xlsx,sheet_names)
     }
     
     datasetSignals <- eval(parse(text=var_name))$signals
