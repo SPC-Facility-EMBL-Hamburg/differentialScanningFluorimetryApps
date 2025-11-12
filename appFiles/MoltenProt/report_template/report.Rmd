@@ -215,11 +215,37 @@ for (selected in 1:total_plots) {
 ```{r, eval=input$report_include_results_plots,tidy=TRUE,results='asis',echo=FALSE}
 cat("## Results Plot \n")
 
-l1 <- paste0("For all fitted parameters: (Standard_deviation / value) * 100 < 50: "     ,input$sd_factor_bool, "\n")
-l2 <- paste0("Baseline separation factor > 0.5       (Only for Two State models): "     ,input$bs_factor_bool, "\n")
-l3 <- paste0("Estimated parameters far from fitting bounds:                       "     ,input$far_from_bounds,"\n")
-  
-cat(c(l1,l2,l3),sep="\n")
+l1 <- paste0("For all fitted parameters: (Standard_deviation / value) * 100 < Threshold: " ,input$sd_factor_bool, "\n")
+l2 <- paste0("Threshold: ",input$rel_error_threshold, "\n")
+l3 <- paste0('Residuals threshold: ',input$residuals_threshold, "\n")
+
+str_vec <- c(l1,l2,l3)
+
+if (reactives$model_name %in% c("EmpiricalTwoState","EquilibriumTwoState")) {
+  l4 <- paste0("Lower Tm filter: ",input$lower_Tm_threshold, "\n")
+  l5 <- paste0("Upper Tm filter: ",input$upper_Tm_threshold, "\n")
+  str_vec <- c(str_vec,l4,l5)
+}
+
+if (reactives$model_name %in% c("EquilibriumTwoState")) {
+  l4 <- paste0("Lower DH filter: ",input$lower_dh_threshold, "\n")
+  l5 <- paste0("Upper DH filter: ",input$upper_dh_threshold, "\n")
+  str_vec <- c(str_vec,l4,l5)
+}
+
+if (reactives$model_name %in% c("EmpiricalThreeState","EquilibriumThreeState")) {
+  l4 <- paste0("Lower T1 filter: ",input$lower_T1_threshold, "\n")
+  l5 <- paste0("Upper T1 filter: ",input$upper_T1_threshold, "\n")
+  str_vec <- c(str_vec,l4,l5)
+}
+
+if (reactives$model_name %in% c("EmpiricalThreeState","EquilibriumThreeState")) {
+  l4 <- paste0("Lower T2 filter: ",input$lower_T2_threshold, "\n")
+  l5 <- paste0("Upper T2 filter: ",input$upper_T2_threshold, "\n")
+  str_vec <- c(str_vec,l4,l5)
+}
+
+cat(str_vec,sep="\n")
 
 ```
 

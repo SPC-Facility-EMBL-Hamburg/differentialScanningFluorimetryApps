@@ -56,11 +56,11 @@ box(
 
     ),
 
-    fluidRow(
+    conditionalPanel(
+        "output.model_name == 'EquilibriumTwoState' ||
+        output.model_name  == 'EmpiricalTwoState'",
 
-        conditionalPanel(
-            "output.model_name == 'EquilibriumTwoState' ||
-            output.model_name == 'EmpiricalTwoState'",
+        fluidRow(
 
             column(3,
 
@@ -91,19 +91,15 @@ box(
                         max = 100,
                         step = 1
                     )
-
                 )
-
             )
-
         )
-
     ),
 
-    fluidRow(
+    conditionalPanel(
+       "output.model_name == 'EquilibriumTwoState'",
 
-        conditionalPanel(
-            "output.model_name == 'EquilibriumTwoState'",
+        fluidRow(
 
             column(4,
 
@@ -134,12 +130,90 @@ box(
                         max = 600,
                         step = 5
                     )
+                )
+            )
+        )
+    ),
+
+    conditionalPanel(
+        "output.model_name == 'EquilibriumThreeState' ||
+        output.model_name  == 'EmpiricalThreeState'",
+
+        fluidRow(
+
+            column(3,
+
+                p(HTML("<b>Lower T1 (°C)</b>"),
+
+                    numericInput(
+                        "lower_T1_threshold",
+                        NULL,
+                        25,
+                        min = 5,
+                        max = 100,
+                        step = 1
+                    )
 
                 )
 
-            )
+            ),
 
+            column(3,
+
+                p(HTML("<b>Upper T1 (°C)</b>"),
+
+                    numericInput(
+                        "upper_T1_threshold",
+                        NULL,
+                        85,
+                        min = 5,
+                        max = 100,
+                        step = 1
+                    )
+                )
+            )
+        )
+    ),
+
+    conditionalPanel(
+        "output.model_name == 'EquilibriumThreeState' ||
+        output.model_name  == 'EmpiricalThreeState'",
+
+        fluidRow(
+
+            column(3,
+
+                p(HTML("<b>Lower T2 (°C)</b>"),
+
+                    numericInput(
+                        "lower_T2_threshold",
+                        NULL,
+                        25,
+                        min = 5,
+                        max = 100,
+                        step = 1
+                    )
+
+                )
+
+            ),
+
+            column(3,
+
+                p(HTML("<b>Upper T2 (°C)</b>"),
+
+                    numericInput(
+                        "upper_T2_threshold",
+                        NULL,
+                        85,
+                        min = 5,
+                        max = 100,
+                        step = 1
+                    )
+                )
+            )
         )
     )
+
 
 )

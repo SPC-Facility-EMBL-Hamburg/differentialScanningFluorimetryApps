@@ -618,10 +618,10 @@ observeEvent(input$model_selected,{
     tempMin <- round(min(temps))
     tempMiddle <- round( (max(temps) + min(temps)) * 0.5 )
     
-    updateNumericInput(session, "t1max", value = tempMiddle,  min = tempMin, max = tempMax)
+    updateNumericInput(session, "t1max", value = tempMiddle+6,  min = tempMin, max = tempMax)
     updateNumericInput(session, "t1min", value = tempMin+5,   min = tempMin, max = tempMax)
     updateNumericInput(session, "t2max", value = tempMax-5,   min = tempMin, max = tempMax)
-    updateNumericInput(session, "t2min", value = tempMiddle,  min = tempMin, max = tempMax)
+    updateNumericInput(session, "t2min", value = tempMiddle-6,  min = tempMin, max = tempMax)
     
   }
   
@@ -767,6 +767,25 @@ filter_conditions <- reactive({
 
   }
 
+  if (reactives$model_name %in% c("EmpiricalThreeState","EquilibriumThreeState")) {
+
+    selected_indexes_to_add <- dsf$filter_by_param_values(
+        'T1',
+        input$lower_T1_threshold+273.15, # to kelvin
+        input$upper_T1_threshold+273.15
+    )
+
+    selected_indexes <- selected_indexes & unlist(selected_indexes_to_add)
+
+    selected_indexes_to_add <- dsf$filter_by_param_values(
+        'T2',
+        input$lower_T2_threshold+273.15, # to kelvin
+        input$upper_T2_threshold+273.15
+    )
+
+    selected_indexes <- selected_indexes & unlist(selected_indexes_to_add)
+
+  }
 
 
 
