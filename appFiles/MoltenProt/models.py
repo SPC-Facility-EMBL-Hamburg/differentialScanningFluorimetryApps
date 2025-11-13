@@ -354,6 +354,9 @@ def empirical_three_state_signal(T,Tonset_1,T1,Tonset_2,T2,bN,bU,bI,kN=0,kU=0,qN
 
     T  = temperature_to_kelvin(T)
 
+    """
+    Previous implementation:
+
     delta_g_N_I_at_onset = -R_gas * Tonset_1 * np.log(0.01/0.99)
     delta_g_I_U_at_onset = -R_gas * Tonset_2 * np.log(0.01/0.99)
 
@@ -362,6 +365,14 @@ def empirical_three_state_signal(T,Tonset_1,T1,Tonset_2,T2,bN,bU,bI,kN=0,kU=0,qN
 
     K1 = np.exp(-delta_g_N_I / (R_gas * T))
     K2 = np.exp(-delta_g_U_I / (R_gas * T))
+    """
+
+    # New simplified implementation
+    exp_term_1 = (T1 - T) * (Tonset_1 * 4.595119) / ((Tonset_1 - T1)*T)
+    exp_term_2 = (T2 - T) * (Tonset_2 * 4.595119) / ((Tonset_2 - T2)*T)
+
+    K1 = np.exp(exp_term_1)
+    K2 = np.exp(exp_term_2)
 
     den = (1+K1+K1*K2)
 
