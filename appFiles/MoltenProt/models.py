@@ -164,7 +164,7 @@ def ode_irrev(T, xn, Tf, Ea, scan_rate_v):
 
     return -1 / scan_rate_v * arrhenius(T, Tf, Ea) * xn
 
-def irrev_signal(T, Tf,Ea,bF,bN,kN,kF,qN,qF,scan_rate_v):
+def irrev_signal(T, Tf,Ea,bN,bF,kN,kF,qN,qF,scan_rate_v):
 
     """
     Nomeclature from Jose M. Sanchez-Ruiz 1992
