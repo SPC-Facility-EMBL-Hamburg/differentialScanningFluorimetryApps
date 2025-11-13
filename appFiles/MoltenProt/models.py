@@ -96,13 +96,21 @@ def empirical_two_state_signal(T,Tonset,Tm,bN,bU,kN=0,kU=0,qN=0,qU=0):
 
     Tm = temperature_to_kelvin(Tm)
     Tonset = temperature_to_kelvin(Tonset)
-    T  = temperature_to_kelvin(T)
+    T = temperature_to_kelvin(T)
 
-    delta_g_2 = -R_gas * Tonset * np.log(0.01/0.99)
+    """
+    Previous implementation:
+        delta_g_2 = -R_gas * Tonset * np.log(0.01/0.99)
 
-    delta_g = (Tm - T) * -delta_g_2 / (Tonset - Tm)
+        delta_g = (Tm - T) * -delta_g_2 / (Tonset - Tm)
 
-    K = np.exp(-delta_g / (R_gas * T))
+        K = np.exp(-delta_g / (R_gas * T))
+    """
+
+    # New simplified implementation
+    exp_term = (Tm - T) * (Tonset * 4.595119) / ((Tonset - Tm) * T)
+
+    K = np.exp(exp_term)
 
     fn = (1/(1 + K))
     fu = 1 - fn
