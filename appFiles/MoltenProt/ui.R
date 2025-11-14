@@ -2,7 +2,7 @@ source("ui_files/theme.R")
 source("ui_files/logo.R")
 source("ui_files/busy_indicator.R")
 
-shinyUI(dashboardPage(title = "MoltenProt",
+shinyUI(dashboardPage(title = "MoltenProt v1.1",
   #logo_grey_light is described in logo.R
   dashboardHeader(title = logo_grey_light, titleWidth = 200),
   dashboardSidebar(collapsed = F,width = 200,
