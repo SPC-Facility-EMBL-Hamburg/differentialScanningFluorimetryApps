@@ -124,7 +124,7 @@ output$download_unfolded_fraction_plot <- downloadHandler(filename = function() 
     tm_position <- which(dsf$params_name == "Tm")  
     tms <- sapply(dsf$params_all, function(x) x[tm_position])
     
-    dh_position <- which(dsf$params_name == "dHm")  
+    dh_position <- which(dsf$params_name == "DH")
     dhs <- sapply(dsf$params_all, function(x) x[dh_position])
     
     dhs        <- dhs[selected_indexes]
