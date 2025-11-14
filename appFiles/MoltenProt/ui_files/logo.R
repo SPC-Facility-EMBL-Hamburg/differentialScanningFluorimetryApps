@@ -20,7 +20,7 @@ shinyDashboardLogoDIY <- function(boldText, mainText, textSize = 20, badgeText, 
 }
 
 logo_grey_light <- shinyDashboardLogoDIY(
-  boldText = "MoltenProt"
+  boldText = "MoltenProt v1.1"
   ,mainText = ""
   ,textSize = 16
   ,badgeText = "" #"1.0"
