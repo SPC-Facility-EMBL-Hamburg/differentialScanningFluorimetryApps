@@ -106,30 +106,62 @@ the file <a href="RUBIC Buffer Screen (MD1-96) screen conditions.xlsx" download>
   <ul class="vf-links__list | vf-list">
     <li class="vf-list__item">
       <a class="vf-list__link" onclick="myFunction('modelsEquilibriumTwoState')" href="JavaScript:Void(0);">
-       Equilibrium Two State
+       Equilibrium Two-state
       </a>
     </li>
 
   <div id="modelsEquilibriumTwoState" style="display:none">
   
-    <p class="vf-intro__text">This model assumes that the protein exists in either native (N) or unfolded (U) state and that there is an equilibrium between the folding and unfolding reactions (N ⇆ U) <a href="https://pubs.acs.org/doi/10.1021/bi00421a014" class="vf-link">(Santoro, M.M. et al. , 1988)</a> <a href="https://www.sciencedirect.com/science/article/abs/pii/S0300908415003600
+    <p class="vf-intro__text">
+        This model assumes that the protein exists in either native (N) or unfolded (U) state and that there is an equilibrium between the folding and unfolding reactions (N ⇆ U)
+        <a href="https://pubs.acs.org/doi/10.1021/bi00421a014" class="vf-link">(Santoro, M.M. et al. , 1988)</a> <a href="https://www.sciencedirect.com/science/article/abs/pii/S0300908415003600
 " class="vf-link">(Bedouelle, H., 2016)</a>. The law of signal F(T) is described by the equation</p>
 
 $$
 \large{ 
-   \frac{k_n \Delta T+b_n+(k_u \Delta T +b_u)*exp(\frac{\Delta H_m}{R}(\frac{1}{T_m}-\frac{1}{T}))}{1 + exp(\frac{\Delta H_m}{R}(\frac{1}{T_m}-\frac{1}{T}))}
-   }
+F(T) = f_n \left( q_n \Delta T^{2} + k_n \Delta T + b_n \right)
+      + f_u \left( q_u \Delta T^{2} + k_u \Delta T + b_u \right)   }
 $$
 
-    <p class="vf-intro__text">
-        where $k_n$, $b_n$ are the slope and intercept of the pre-transition (native) baseline,
-        $k_u$, $b_u$ are the slope and intercept of post-transition (unfolded) baseline, $R$ is the universal gas constant,
-        and $\Delta H_m$ is enthalpy of unfolding at melting temperature $T_m$. $\Delta T$ is the difference between the temperature T and the standard temperature 25°C.
-        After fitting, $\Delta G$ of unfolding at 25°C (298.15 K) is estimated using </p>
+<p class="vf-intro__text">
+where $q_n$, $k_n$, $b_n$ are the quadratic, linear and constant terms of the pre-transition (native) baseline,
+$q_n$, $k_u$, $b_u$ are the quadratic, linear and constant terms of the post-transition (unfolded) baseline. $\Delta T$ is the difference between the temperature T and the standard temperature 25°C.
+    $f_n$ is the folded fraction and $f_u$ is the unfolded fraction. $f_n$ depends on the unfolding equilibrium constant:
+</p>
+
+$$
+\large{
+f_n(T) = \left( 1 + K_u \right)^{-1}
+}
+$$
+
+<p class="vf-intro__text">
+where $K_u$ is given by
+</p>
+
+$$
+\large{
+      K_u(T) = e^{-\Delta G_u / RT}
+}
+$$
+
+$$
+\large{
+\Delta G(T) = \Delta H_m \left( 1 - \frac{T}{T_m} \right) - \Delta C_p \left( T_m - T + T \ln\!\left(\frac{T}{T_m}\right) \right)
+}
+$$
+
+<p class="vf-intro__text">
+
+where $R$ is the universal gas constant,
+and $\Delta H_m$ is enthalpy of unfolding at melting temperature $T_m$.
+$\Delta C_p$, the change in heat capacity upon unfolding, is assumed to be zero and can not be fitted.
+After fitting, $\Delta G$ of unfolding at 25°C (298.15 K) is estimated using
+</p>
     
     $$
 \large{ 
-   \Delta G_{298.15K} (\Delta H,T_m,C_p)=\Delta H (1-\frac{298.15K}{T_m})-C_p(C_pComponent)
+   \Delta G_{298.15K} (\Delta H,T_m,C_p)=\Delta H (1-\frac{298.15K}{T_m})-\Delta C_p(z)
    }
 $$
 
@@ -137,127 +169,169 @@ $$
 
     $$
 \large{ 
-C_pComponent(T_m)=T_m-298.15K + 298.15K*\log{(\frac{298.15K}{T_m})}
+z(T_m) = T_m - 298.15K + 298.15K*\ln{(\frac{298.15K}{T_m})}
    }
 $$
-    
-    <p class="vf-intro__text">Also, the fraction of unfolded protein at different temperatures is estimated using </p>
 
-$$
-\large{ 
-FractionUnfolded(T_m,\Delta H, T) = \frac{exp(\frac{\Delta H}{R}(\frac{1}{T_m}-\frac{1}{T}))}{1+exp(\frac{\Delta H}{R}(\frac{1}{T_m}-\frac{1}{T}))}
-}
-$$    
-
-    <p class="vf-intro__text">And the baseline separation factor by:
- </p>
-
-$$
-\large{
-BS(k_u,b_u,T_m,k_n,b_n,stdErrorEstimate)=1-6 \frac{stdErrorEstimate}{|k_u T_m + b_u - (k_n T_m + b_n)|}
-}
-$$
 
 </div>
 
     <li class="vf-list__item">
       <a class="vf-list__link" onclick="myFunction('modelsEmpiricalTwoState')" href="JavaScript:Void(0);">
-      Empirical Two State
+      Empirical Two-state
       </a>
     </li>
 
   <div id="modelsEmpiricalTwoState" style="display:none">
     
-    <p class="vf-intro__text">This model is a descriptive version of the Equilibrium Two State model: instead of enthalpy of unfolding at $T_m$ ($\Delta H_m$), the model uses onset temperature $T_{onset}$ (temperature at which 1% of protein is unfolded) to describe the steepness of the curve <a href="https://www.nature.com/articles/s41598-019-46686-8" class="vf-link">(Kotov, V., et al., 2019)</a>. The law of signal F(T) is described by the equation
+    <p class="vf-intro__text">This model is similar to the 'Equilibrium Two-state' model, but it
+        uses the parameter $T_{onset}$, instead of enthalpy of unfolding, to describe the steepness of the curve.
+        The free energy of unfolding is expressed as:
  </p>
  
 $$
 \large{
-F(T)=\frac{k_n \Delta T + b_n + (k_u \Delta T + b_u)*exp(\frac{T-T_m*log(\frac{0.01}{0.99})}{T_{onset}-T_m})}{1+exp(\frac{T-T_m*log(\frac{0.01}{0.99})}{T_{onset}-T_m})}
+\Delta G(T) = \frac{(T_m - T)RTln(\frac{0.01}{0.99})}{T_{onset} - T_m}
 }
 $$
 
     <p class="vf-intro__text">
         To assess the stability we provide a score which is the distance from the origin (0,0) to the point ($T_m$, $T_{onset}$).
         This score assumes that $T_m$ and $T_{onset}$ are equally important for protein stability.
-        The baseline separation factor is estimated in the same way as in the 'Equilibrium Two State' model.
  </p>
+
 </div>
 
     <li class="vf-list__item">
       <a class="vf-list__link" onclick="myFunction('modelsEquilibriumThreeState')" href="JavaScript:Void(0);">
-      Equilibrium Three State
+      Equilibrium Three-state
       </a>
     </li>
 
   <div id="modelsEquilibriumThreeState" style="display:none">
     
-    <p class="vf-intro__text">This model assumes that the protein exists in three posible states: native (N), unfolded intermediate (I) and  unfolded (U) state <a href="https://www.nature.com/articles/s41598-017-16360-y" class="vf-link">(Mazurenko, S. et al., 2017)</a>. The law of signal F(T) is described by the equation
+    <p class="vf-intro__text">
+        This model assumes that the protein exists in three possible states: native (N), unfolded intermediate (I) and  unfolded (U) state
+        <a href="https://www.nature.com/articles/s41598-017-16360-y" class="vf-link">(Mazurenko, S. et al., 2017)</a>.
+        The law of signal F(T) is described by the equation
  </p>
  
 $$
-
-F(T)=\frac{k_n \Delta T + b_n+k_I *exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T}))+(k_u \Delta T + b_u) *exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T})) *exp(\frac{\Delta H_{m2}}{R}(\frac{1}{T_2}-\frac{1}{T})) }{1+exp(\frac{\Delta H_{m1}}{R}(\frac{1}{T_1}-\frac{1}{T})) *exp(\frac{\Delta H_{m2}}{R}(\frac{1}{T_2}-\frac{1}{T}))}
-
+\large{
+F(T) = f_n \left( q_n \Delta T^{2} + k_n \Delta T + b_n \right)
+      + f_u \left( q_u \Delta T^{2} + k_u \Delta T + b_u \right)
+      + f_i \left( b_i \right) }
 $$
 
-    <p class="vf-intro__text">where $k_n$, $b_n$ are the slope and intercept of the pre-transition (native) baseline, $k_u$, $b_u$ are the slope and intercept of post-transition (unfolded) baseline, $k_I$ is the signal slope for the (short-lived) I state, $R$ is the universal gas constant, $\Delta H_{m1}$ and $\Delta H_{m2}$ are the enthalpy of unfolding at melting temperatures $T_1$ (N ⇆ I) and $T_2$ (I ⇆ U). 
+    <p class="vf-intro__text">
+where $q_n$, $k_n$, $b_n$ are the quadratic, linear and constant terms of the pre-transition (native) baseline,
+$q_n$, $k_u$, $b_u$ are the quadratic, linear and constant terms of the post-transition (unfolded) baseline,
+and $b_i$ is the constant term of the intermediate (I) state. $\Delta T$ is the difference between the temperature T and the standard temperature 25°C.
+$f_n$, $f_u$ and $f_i$ are the fractions of natively folded, unfolded and intermediate molecules, which are calculated as:
  </p>
- 
- 
-    <p class="vf-intro__text"> To assess the stability we provide as score the free energy of unfolding extrapolated to 25°C, (sum of the free energy change for reactions N ⇆ I and I ⇆ U).
+
+$$
+\large{
+f_n(T) = \frac{1}{1+K_{1}(T)+K_{1}(T)K_{2}(T)}
+}
+$$
+
+$$
+\large{
+f_i(T) = \frac{K_1(T)}{1+K_{1}(T)+K_{1}(T)K_{2}(T)}
+}
+$$
+
+$$
+\large{
+f_u(T) = \frac{K_1(T)K_2(T)}{1+K_{1}(T)+K_{1}(T)K_{2}(T)}
+}
+$$
+
+
+<p class="vf-intro__text">
+
+    The equilibrium constant $K_1$ (N ⇆ I) depends on the enthalpy of unfolding $\Delta H_{1}$ and the transition temperature $T_1$,
+    while the equilibrium constant $K_2$ (I ⇆ U) depends on the enthalpy of unfolding $\Delta H_{2}$ and the transition temperature $T_2$.
+    For both reactions, $\Delta C_p$ is assumed to be zero and can not be fitted.
+    Finally, to assess the stability we provide as score the free energy of unfolding extrapolated to 25°C, (sum of the free energy change for reactions N ⇆ I and I ⇆ U).
  </p>
  
 </div>
 
     <li class="vf-list__item">
       <a class="vf-list__link" onclick="myFunction('modelsEmpiricalThreeState')" href="JavaScript:Void(0);">
-      Empirical Three State
+      Empirical Three-state
       </a>
     </li>
 
   <div id="modelsEmpiricalThreeState" style="display:none">
     
-    <p class="vf-intro__text">This model is a descriptive version of the Equilibrium Three State model where instead of enthalpy of unfolding we use $T_{onset1}$ and $T_{onset2}$. The law of signal F(T) is described by the equation
+    <p class="vf-intro__text">
+        This model uses the parameters $T_{onset1}$ and $T_{onset2}$, instead of $\Delta H_{1}$ ad $\Delta H_{2}$. The free energy of the unfolding reaction
+        N ⇆ I is calculated as:
  </p>
 
 $$
-
-F(T)=\frac{k_n \Delta T +b_n+k_I*exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})+(k_u \Delta T + b_u)*exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})*exp(\frac{(T-T_2)*log(\frac{0.01}{0.99})}{T_{onset2}-T_2})}{1+exp(\frac{(T-T_1)*log(\frac{0.01}{0.99})}{T_{onset1}-T_1})*exp(\frac{(T-T_2)*log(\frac{0.01}{0.99})}{T_{onset2}-T_2})}
-
+\large{
+\Delta G_{N\leftrightarrow I}(T)
+= (T_1 - T)\,
+\frac{R\,T_{\text{onset},1}\,\ln\!\left(\frac{0.01}{0.99}\right)}
+     {T_{\text{onset},1} - T_1}
+}
 $$
 
-    <p class="vf-intro__text">The provided score corresponds to the sum of the distance from the point (0,0) to ($T_{m1}$,$T_{onset1}$) and (0,0) to ($T_{m2}$,$T_{onset2}$).
+<p class="vf-intro__text">
+        while the free energy of the unfolding reaction I ⇆ U is calculated as:
+ </p>
+
+$$
+\large{
+\Delta G_{I\leftrightarrow U}(T)
+= (T_2 - T)\,
+\frac{R\,T_{\text{onset},2}\,\ln\!\left(\frac{0.01}{0.99}\right)}
+     {T_{\text{onset},2} - T_2}
+}
+$$
+
+    <p class="vf-intro__text">
+        The provided score corresponds to the sum of the distance from the origin to ($T_{1}$,$T_{onset,1}$) and (0,0) to ($T_{2}$,$T_{onset,2}$).
  </p>
 
 </div>
 
     <li class="vf-list__item">
       <a class="vf-list__link" onclick="myFunction('modelsIrreversibleTwoState')" href="JavaScript:Void(0);">
-      Irreversible Two State
+      Irreversible Two-state
       </a>
     </li>
 
   <div id="modelsIrreversibleTwoState" style="display:none">
 
-    <p class="vf-intro__text">This model assumes that the protein exists in two posible states: native (N) and  unfolded (U), and that the unfolding reaction is irreversible. The law of signal F(T) is described by the equation
+    <p class="vf-intro__text">
+        This model assumes that the protein exists in two possible states: native (N) and  unfolded (U), and that the unfolding reaction is irreversible.
+        The law of signal F(T) is described by the equation
  </p>
 
 $$
 \large{
-F(T)=k_u \Delta T + b_u + (k_n \Delta T + b_n) * x_n(T)
-}
+F(T) = x_n \left( q_n \Delta T^{2} + k_n \Delta T + b_n \right)
+      + (1-x_n) \left( q_u \Delta T^{2} + k_u \Delta T + b_u \right)   }
 $$
 
-    <p class="vf-intro__text">where $k_n$, $b_n$ are the slope and intercept of the pre-transition (native) baseline, $k_u$, $b_u$ are the slope and the intercept of post-transition baseline, and $x_n(T)$ is the fraction of natively folded molecules as a function of temperature. $x_n(T)$ is obtained via numeric integration:
+    <p class="vf-intro__text">
+<p class="vf-intro__text">
+where $q_n$, $k_n$, $b_n$ are the quadratic, linear and constant terms of the pre-transition (native) baseline,
+$q_n$, $k_u$, $b_u$ are the quadratic, linear and constant terms of the post-transition (unfolded) baseline. $\Delta T$ is the difference between the temperature T and the standard temperature 25°C.
+    $x_n$ is the folded fraction, obtained via numeric integration:
  </p>
  
 $$
 \large{
-x_n(T)= \int_{T_{min}}^{T_{max}} \frac{-1}{v} exp(\frac{-Ea}{R}(\frac{1}{T}-\frac{1}{T_f}))x_n
+x_n(T)= \int_{T_{min}}^{T_{max}} \frac{-1}{v} exp(\frac{-E_a}{R}(\frac{1}{T}-\frac{1}{T_f}))x_n
 }
 $$
-    <p class="vf-intro__text">where $T_{max}$ and $T_{min}$ are the start and end temperatures of the measurement, $v$ is the scan rate (degrees/min), $Ea$ is activation energy of unfolding, $T_f$ is the temperature where the reaction rate constant of unfolding (k) equals 1 and $R$ is the universal gas constant. $x_n$ is assumed to be 1 at $T_{min}$. Read <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1260351/" class="vf-link">(Sanchez-Ruiz J.M., 1992)</a> and <a href="https://www.nature.com/articles/s41598-017-16360-y" class="vf-link">(Mazurenko, S. et al., 2017)</a> for derivation of similar equations for differential scanning calorimetry data.
+    <p class="vf-intro__text">where $T_{max}$ and $T_{min}$ are the start and end temperatures of the measurement, $v$ is the scan rate (degrees/min), $E_a$ is activation energy of unfolding, $T_f$ is the temperature where the reaction rate constant of unfolding (k) equals 1 and $R$ is the universal gas constant. $x_n$ is assumed to be 1 at $T_{min}$. Read <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1260351/" class="vf-link">(Sanchez-Ruiz J.M., 1992)</a> and <a href="https://www.nature.com/articles/s41598-017-16360-y" class="vf-link">(Mazurenko, S. et al., 2017)</a> for derivation of similar equations for differential scanning calorimetry data.
  </p>
 
     <p class="vf-intro__text">The final score for this model is the negative logarithm of the reaction rate constant at standard state temperature (pk_std). This metric integrates the slope and inflection point of the unfolding curve (represented here as $Ea$ and $T_f$) in a single measure of stability.
@@ -268,89 +342,6 @@ $$
 </div>
 </div>
 
-<div class="vf-section-header"><a class="vf-section-header__heading vf-section-header__heading--is-link" href="JavaScript:Void(0);" id="section-link" onclick="myFunction('Fitting')">Fitting <svg aria-hidden="true" class="vf-section-header__icon | vf-icon vf-icon-arrow--inline-end" width="1em" height="1em" xmlns="http://www.w3.org/2000/svg">
-      <path d="M0 12c0 6.627 5.373 12 12 12s12-5.373 12-12S18.627 0 12 0C5.376.008.008 5.376 0 12zm13.707-5.209l4.5 4.5a1 1 0 010 1.414l-4.5 4.5a1 1 0 01-1.414-1.414l2.366-2.367a.25.25 0 00-.177-.424H6a1 1 0 010-2h8.482a.25.25 0 00.177-.427l-2.366-2.368a1 1 0 011.414-1.414z" fill="" fill-rule="nonzero"></path>
-    </svg></a></div>
-
-<div id="Fitting" style="display:none">
-  
-    <p class="vf-intro__text">
-        Each fluorescence curve is individually fitted using non-linear least squares with the scipy package curve_fit function.
-        It is important for the fitting routine to select a temperature range (in the '1. Load Input' step)
-        that covers only the vicinity of the transition(s) that is(are) going to be analyzed.
-        To obtain initial estimates of $k_n$, $b_n$, $k_u$ and $b_u$ the first / last data of each curve is fitted to a linear function.
-        The fitting boundaries used for the thermodynamic parameters are described in the following Table.</p>
-
-<p class="vf-intro__text"></p>
-
-<table class="vf-table">
-
-  <thead class="vf-table__header">
-    <tr class="vf-table__row">
-      <th class="vf-table__heading" scope="col"> Parameter
-      </th>
-      <th class="vf-table__heading" scope="col"> Lower bound
-      </th>
-      <th class="vf-table__heading" scope="col"> Upper bound
-      </th>
-    </tr>
-  </thead>
-
-  <tbody class="vf-table__body">
-    
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$T_m$</td>
-      <td class="vf-table__cell">Lowest temperature + 6</td>
-      <td class="vf-table__cell">Highest temperature - 6</td>
-    </tr>
-    
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$T_1$*</td>
-      <td class="vf-table__cell">Lowest temperature + 5</td>
-      <td class="vf-table__cell">Middle temperature</td>
-    </tr>
-    
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$T_2$*</td>
-      <td class="vf-table__cell">Middle temperature</td>
-      <td class="vf-table__cell">Highest temperature - 5</td>
-    </tr>    
-    
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$T_{onset}$</td>
-      <td class="vf-table__cell">Lowest temperature + 1</td>
-      <td class="vf-table__cell">Highest temperature - 11</td>
-    </tr>
-
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$T_{onset1}$</td>
-      <td class="vf-table__cell">$T_1$ lower bound - 5</td>
-      <td class="vf-table__cell">$T_1$ higher bound - 5</td>
-    </tr>
-    
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$T_{onset2}$</td>
-      <td class="vf-table__cell">$T_2$ lower bound - 5</td>
-      <td class="vf-table__cell">$T_2$ higher bound - 5</td>
-    </tr>
-
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$\Delta H_m$, $\Delta H_{m1}$, $\Delta H_{m2}$</td>
-      <td class="vf-table__cell">2.5 kcal/mol</td>
-      <td class="vf-table__cell">750 kcal/mol</td>
-    </tr>
-
-    <tr class="vf-table__row">
-      <td class="vf-table__cell">$k_I$</td>
-      <td class="vf-table__cell">1E-3</td>
-      <td class="vf-table__cell">1E3</td>
-    </tr>
-
-  </tbody>
-</table>
-
-    <p class="vf-intro__text">*The boundaries of $T_1$ and $T_2$ can be changed by the user.
-        The boundaries of $T_{onset1}$ and $T_{onset2}$ will be modified accordingly.</p>
 
 </div>
 

@@ -3,11 +3,11 @@ box(title = "2.1 Model selection", width = 3, solidHeader = T, status = "primary
       column(10, p(HTML("<b></b>"),
                    span(shiny::icon("info-circle"), id = "info_uu2-1"),
                    selectInput("model_selected", NULL,
-                               c("Equilibrium Two State"      = "EquilibriumTwoState",
-                                 "Empirical Two State"        = "EmpiricalTwoState",
-                                 "Equilibrium Three State"    = "EquilibriumThreeState",
-                                 "Empirical Three State"      = "EmpiricalThreeState",
-                                 "Irreversible Two State"     = "IrreversibleTwoState")),
+                               c("Equilibrium Two-state v1.1"      = "EquilibriumTwoState",
+                                 "Empirical Two-state v1.1"        = "EmpiricalTwoState",
+                                 "Equilibrium Three-state v1.1"    = "EquilibriumThreeState",
+                                 "Empirical Three-state v1.1"      = "EmpiricalThreeState",
+                                 "Irreversible Two-state v1.1"     = "IrreversibleTwoState")),
                    tippy::tippy_this(elementId = "info_uu2-1",
                                      tooltip = "More information about the models can be found in the User Guide section.
                                      The result of the fitting procedure is presented in the 'Fitted conditions' Table. 
