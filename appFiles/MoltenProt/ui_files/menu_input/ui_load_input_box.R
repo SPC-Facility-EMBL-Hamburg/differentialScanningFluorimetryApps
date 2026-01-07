@@ -49,7 +49,7 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
                   tippy::tippy_this(elementId = "info_uu1-2",
                                     tooltip = "Rescale the fluorescence signal to facilitate comparison",placement = "right"))),
       
-      column(12, p(HTML("<b>\nSignal Window Range (ºC)</b>"),
+      column(12, p(HTML("<b>\nTemperature range (ºC)</b>"),
                    span(shiny::icon("info-circle"), id = "info_uu1-4"),
                    
                    #Change colour of slider (this code should be re-written in a cleaner way. For now, it works)
@@ -80,7 +80,7 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
       
       column(4, p(HTML("<b>Select Series</b>"),
                   span(shiny::icon("info-circle"), id = "info_uu1-8"),
-                  selectInput("selected_cond_series", NULL,c("All")),
+                  selectInput("selected_cond_series", NULL,c("ALL")),
                   tippy::tippy_this(elementId = "info_uu1-8",
                     tooltip = "Change the Series column labels (from \'A\' to \'B\' for example) and display only the desired conditions",
                     placement = "right"))),
@@ -88,22 +88,13 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
       conditionalPanel(
         'output.full_spectra',
         
-        column(8, p(HTML('<p style="margin-bottom:0px;"><br></p>'),
+        column(12, p(HTML('<p style="margin-bottom:0px;"><br></p>'),
                     actionButton(
-                      inputId = "updateSpectralPlots",label = "Update the whole spectra plots",
+                      inputId = "show_full_spectra_menu",label = "Show full spectrum menu",
                       icon("arrow-right"),
                       style="color: #fff; background-color: #337ab7; 
-               border-color: #2e6da4"))),
-
-        column(12, p(HTML("<b>\nWavelength  range (nm)</b>"),
-                   span(shiny::icon("info-circle"), id = "info_uu1-wl"),
-
-                   sliderInput("wl_range", NULL,min = 0, max = 800,value = c(0,800)),
-                   tippy::tippy_this(elementId = "info_uu1-wl",
-                   tooltip = "Select the wavelength range of interest to show in the whole spectra
-                   plots.",
-                   placement = "right")))
-
+               border-color: #2e6da4"))
         )
-    
-    ))
+      )
+    )
+)

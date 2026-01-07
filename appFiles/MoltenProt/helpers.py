@@ -906,3 +906,21 @@ def detect_file_type(file):
             file_type = "prometheus"
 
     return file_type
+
+def generate_2D_signal_matrix(condition_id,signal_data_dictionary,selected_rows):
+
+    """
+    Args:
+        condition_id (integer): Condition identifier.
+        signal_data_dictionary (dict): Dictionary containing signal data (keys: wavelengths, values: signal values).
+        selected_rows (list): List of wavelength indices to keep.
+    Returns:
+        numpy.ndarray: 2D array of signal values (n_temps x n_wavelengths).
+    """
+
+    signals_i = [signal[:,condition_id] for signal in signal_data_dictionary.values()]
+    signals_2D = np.array(signals_i)[selected_rows]
+
+    return signals_2D
+
+

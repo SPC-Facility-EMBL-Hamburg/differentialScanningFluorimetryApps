@@ -8,7 +8,9 @@ reactives <- reactiveValues(
   spectra_panel_names            = NULL,
   reportDir                      = NULL,
   model_is_two_state             = NULL,
-  model_name                     = NULL
+  model_name                     = NULL,
+  min_wl                         = 0,
+  max_wl                         = 800
   )
 
 output$data_loaded             <- reactive({
@@ -52,73 +54,11 @@ renderConditionsTable <- function(tables) {
 
 }
 
-renderSpectralPlots <- function() {
-  
-  # Delete all previous Tabs
-  if (!is.null(reactives$spectra_panel_names)) {
-    for (tabPanelTargetName in reactives$spectra_panel_names) {
-      removeTab(inputId = "tabset1", 
-                target = tabPanelTargetName)
-    }
-  }
-  
-  nConditions   <- length(dsf$conditions) 
-  
-  # Return NULL if no conditions are selected
-  if (nConditions == 0) return(NULL)
-  
-  tabPanelNames <- generate_tab_panels(nConditions)
-  
-  # Create new Tabs - do not use a for loop here, because it does not work
-  lapply(tabPanelNames, function(sp){
-    
-    appendTab(inputId = "tabset1",
-              tabPanel(sp,plotOutput(sp))
-    )
-    return(NULL)
-  })
-  
-  reactives$spectra_panel_names <- tabPanelNames
-  
-  all_signals <- dsf$signal_data_dictionary
-  all_temps   <- dsf$temp_data_dictionary
-  
-  tog <- join_all_signals(all_signals,all_temps,
-                          c(dsf$conditions),reactives$include_vector,
-                          input$sg_range[1],input$sg_range[2])
-  
-  maxPanels     <- length(tabPanelNames)
 
-  # Use lapply over for loop to avoid only rendering the last plot
-  lapply(0:(maxPanels-1), function (i) {
-    
-    tabPanelName <- tabPanelNames[i+1]
-    
-    tog2      <- tog[tog$name %in% unique(tog$name)[(20*i+1):(20*(i+1))],]
-    tog2$name <- factor(tog2$name,levels=unique(tog2$name))
-
-    fig       <- plot_whole_spectra(
-        tog2,font_size = input$plot_axis_size,
-        min_wl=input[['wl_range']][1],max_wl=input[['wl_range']][2])
-    
-    output[[tabPanelName]] <- renderPlot(fig)
-    
-    return(NULL)
-  })
-  
-  return(NULL)
-}
-
-observeEvent(input$updateSpectralPlots,{
-  
-  renderSpectralPlots()
-  
-})
 
 observeEvent(input$FLf,{
 
   reactives$data_loaded             <- FALSE
-  reactives$full_spectra            <- FALSE
 
   resetConditionsTable()
   
@@ -183,12 +123,6 @@ observeEvent(input$FLf,{
       if (fileExtension == "supr") {
         dsf$load_supr_dsf(input$FLf$datapath)
 
-        # Update the wavelength range slider
-        updateSliderInput(session,"wl_range",NULL,
-                          min = dsf$min_wavelength, max = dsf$max_wavelength,
-                          value = c(dsf$min_wavelength,dsf$max_wavelength))
-
-        reactives$full_spectra   <- TRUE
         reactives$include_vector <- rep(T,length(dsf$conditions))
         
         Sys.sleep(0.5)
@@ -210,29 +144,30 @@ observeEvent(input$FLf,{
 
           dsf$load_aunty_xlsx_file(input$FLf$datapath)
                     # Update the wavelength range slider
-          updateSliderInput(session,"wl_range",NULL,
-                            min = dsf$min_wavelength, max = dsf$max_wavelength,
-                            value = c(dsf$min_wavelength,dsf$max_wavelength))
 
-          reactives$full_spectra   <- TRUE
           reactives$include_vector <- rep(T,length(dsf$conditions))
 
         } else if (file_is_of_type_uncle(input$FLf$datapath)) {
           dsf$load_uncle_multi_channel(input$FLf$datapath)
 
-          # Update the wavelength range slider
-          updateSliderInput(session,"wl_range",NULL,
-                            min = dsf$min_wavelength, max = dsf$max_wavelength,
-                            value = c(dsf$min_wavelength,dsf$max_wavelength))
-
-          reactives$full_spectra   <- TRUE
           reactives$include_vector <- rep(T,length(dsf$conditions))
         } else {
           dsf$load_nano_dsf_xlsx(input$FLf$datapath,sheet_names)
         }
       
       }
-      
+
+      # Update the wavelength range slider for full spectra data
+      reactives$full_spectra <- dsf$full_spectrum
+
+      if (dsf$full_spectrum) {
+
+        reactives$min_wl <- dsf$min_wavelength
+        reactives$max_wl <- dsf$max_wavelength
+
+      }
+
+
       conditions <- c(dsf$conditions)
       dsf$set_signal(dsf$signals[1])
       updateSelectInput(session, "which",choices  = dsf$signals)
@@ -253,7 +188,8 @@ observeEvent(input$FLf,{
 
       dsf$estimate_fluo_derivates(input$SG_window2)
 
-      updateSliderInput(session,"sg_range",NULL,min = min_temp, max = max_temp,value = c(min_temp+3,max_temp-3))
+      updateSliderInput(session,"sg_range",NULL,min = min_temp, max = max_temp,
+                        value = c(min_temp+1,max_temp-1))
       
       Sys.sleep(0.5)
       reactives$data_loaded             <- TRUE
@@ -261,20 +197,38 @@ observeEvent(input$FLf,{
     }})
 },priority = 10)
 
-observe({
-  
-  req(input$table1)
-  req(reactives$data_loaded)
-  
-  uniqueSeries <- unique(
-    get_include_vector(input$table1,input$table2,input$table3,input$table4,
-                       length(dsf$conditions_original),
-                       reactives$global_n_rows_conditions_table,
-                       reactives$global_max_conditions)$series_vector)
+observeEvent(list(input$table1,input$table2,input$table3,input$table4),{
 
-  updateSelectInput(session, "selected_cond_series",choices  = c("All",uniqueSeries))
+  req(input$table1)
+
+  table_series <- unique(
+    get_include_vector(
+      input$table1,input$table2,input$table3,input$table4,
+      length(dsf$conditions_original),
+      reactives$global_n_rows_conditions_table,
+      reactives$global_max_conditions)$series_vector
+  )
+
+  current_series <- input$selected_cond_series
+
+  for (series in table_series) {
+    if (!(series %in%  current_series)) {
+      # Add new series found in the table
+      current_series <- c(current_series,series)
+    }
+  }
+
+  for (series in current_series) {
+    if (!(series %in%  table_series)) {
+      # Delete series no longer in the table, except 'ALL'
+      if (series == 'ALL') {next}
+      current_series <- current_series[current_series != series]
+    }
+  }
+
+  updateSelectInput(session, "selected_cond_series",choices  = c(current_series))
   
-})
+},ignoreInit = TRUE)
 
 observeEvent(input$layout_file$datapath,{
   
@@ -348,9 +302,10 @@ modify_fluo_temp_cond <- reactive({
 
   nconditions <- length(dsf$conditions_original)
   
-  condition_include_list <- get_include_vector(input$table1,input$table2,input$table3,input$table4,
-                                               nconditions,reactives$global_n_rows_conditions_table,
-                                               reactives$global_max_conditions)
+  condition_include_list <- get_include_vector(
+    input$table1,input$table2,input$table3,input$table4,
+    nconditions,reactives$global_n_rows_conditions_table,
+    reactives$global_max_conditions)
   
   conditions_vector      <- as.character(condition_include_list$conditions_vector)
   include_vector         <- as.logical(condition_include_list$include_vector)
@@ -359,7 +314,7 @@ modify_fluo_temp_cond <- reactive({
   color_vector <- as.character(condition_include_list$color_vector)
 
   dsf$set_signal(input$which)
-  
+
   # Get signal window range
   sg_range_min_kelvin <- input$sg_range[1] + 273.15
   sg_range_max_kelvin <- input$sg_range[2] + 273.15
@@ -369,8 +324,8 @@ modify_fluo_temp_cond <- reactive({
   
   # ... Modify in place the python class fluorescence signal according to the selected signal window range ...
   dsf$filter_by_temperature(left_bound,right_bound)
-  
-  if (input$selected_cond_series != "All") {
+
+  if (input$selected_cond_series != "ALL") {
     include_vector         <- include_vector & (series_vector == input$selected_cond_series)
   }
   
@@ -392,7 +347,7 @@ modify_fluo_temp_cond <- reactive({
   dsf$fluo <- normalize_fluo_matrix_by_option(input$normalization_type,dsf$fluo,dsf$temps)
 
   dsf$estimate_fluo_derivates(input$SG_window2)
-  
+
   return(condition_include_list$conditions_vector)
   
 })
@@ -405,8 +360,11 @@ output$signal <- renderPlotly({
   
   if (is.null(modify_fluo_temp_cond())) {return(NULL)}
   
-  fluo_m <- make_df4plot(dsf$fluo,dsf$conditions,
-                         dsf$temps)
+  fluo_m <- make_df4plot(
+    dsf$fluo,
+    dsf$conditions,
+    dsf$temps
+  )
   
   if (!(is.null(fluo_m))) {
     p <- plot_fluo_signal(fluo_m,dsf$colors,dsf$signal_type,
@@ -437,7 +395,11 @@ output$signal_der1 <- renderPlotly({
   
   modify_fluo_temp_cond()
   
-  fluo_m <- make_df4plot(dsf$derivative,dsf$conditions,dsf$temps)
+  fluo_m <- make_df4plot(
+    dsf$derivative,
+    dsf$conditions,
+    dsf$temps
+  )
 
   if (!(is.null(fluo_m))) {
     p <- plot_fluo_signal(fluo_m,dsf$colors,"First derivative",
@@ -466,7 +428,11 @@ output$signal_der2 <- renderPlotly({
   
   modify_fluo_temp_cond()
   
-  fluo_m <- make_df4plot(dsf$derivative2,dsf$conditions,dsf$temps)
+  fluo_m <- make_df4plot(
+    dsf$derivative2,
+    dsf$conditions,
+    dsf$temps
+  )
   
   if (!(is.null(fluo_m))) {
     p <- plot_fluo_signal(fluo_m,dsf$colors,"Second derivative",
@@ -495,9 +461,15 @@ output$tm_derivative <- renderPlotly({
   
   modify_fluo_temp_cond()
   
-  p <- generate_max_der_plot(dsf$tms_from_deriv,dsf$conditions,
-                             input$plot_width, input$plot_height, 
-                             input$plot_type,input$plot_font_size,input$plot_axis_size)
+  p <- generate_max_der_plot(
+    dsf$tms_from_deriv,
+    dsf$conditions,
+    input$plot_width,
+    input$plot_height,
+    input$plot_type,
+    input$plot_font_size,
+    input$plot_axis_size
+  )
   
   return(p)
   

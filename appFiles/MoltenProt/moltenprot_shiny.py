@@ -9,6 +9,10 @@ from scipy.optimize   import curve_fit
 from scipy.integrate  import solve_ivp
 from natsort          import index_natsorted
 
+from svd import (
+    apply_svd
+)
+
 # Load custom helper functions
 from helpers import (
     is_blank,
@@ -34,7 +38,8 @@ from helpers import (
     get_eq_three_state_combined_deltaG,
     get_empirical_two_state_score,
     get_empirical_three_state_score,
-    get_irrev_two_state_pkd
+    get_irrev_two_state_pkd,
+    generate_2D_signal_matrix
 )
 
 from models import(
@@ -120,6 +125,9 @@ class DsfFitter:
 
         # 1D numpy array
         self.temps = None
+
+        # Boolean to indicate if we have full spectrum data
+        self.full_spectrum = False
 
         # Maximum temperature in the selected temperature range
         self.max_temp = None
@@ -290,7 +298,7 @@ class DsfFitter:
 
         sheet_names_to_load = np.array([s for (i, s) in zip(include, sheet_names) if i])
 
-        self.signals        = sheet_names_to_load
+        self.signals  = sheet_names_to_load
 
         for signal in self.signals:
 
@@ -325,6 +333,8 @@ class DsfFitter:
 
             self.signal_data_dictionary[signal]   = fluo
             self.temp_data_dictionary[signal]     = temp
+
+        self.full_spectrum = False
 
         return None
 
@@ -430,6 +440,8 @@ class DsfFitter:
 
         self.signals = np.array(signals_clean)
 
+        self.full_spectrum = False
+
         return None
 
     def load_thermofluor_xlsx(self, thermofluor_file):
@@ -463,6 +475,8 @@ class DsfFitter:
         self.temp_data_dictionary[signal]     = temperature_to_kelvin(self.temp_data_dictionary[signal])
 
         self.signals = np.array([signal])
+
+        self.full_spectrum = False
 
         return None
 
@@ -536,6 +550,8 @@ class DsfFitter:
         # Add position index to avoid problems with empty names
         self.conditions = [cond + " P" + str(i+1) if is_blank(cond) else cond for i,cond in enumerate(conditions)]
 
+        self.full_spectrum = False
+
         return None
 
     def load_quantstudio_txt(self, qs_file):
@@ -575,6 +591,8 @@ class DsfFitter:
         self.signal_data_dictionary[signal]   = fluo
         self.temp_data_dictionary[signal]     = temp
         self.signals = np.array([signal])
+
+        self.full_spectrum = False
 
         return None
 
@@ -637,6 +655,8 @@ class DsfFitter:
         self.temp_data_dictionary[signal]   = temperature_to_kelvin(temp)
 
         self.signals = np.array([signal])
+
+        self.full_spectrum = False
 
         return None
 
@@ -783,6 +803,8 @@ class DsfFitter:
             json_data = file.read()
         """
 
+        self.init_dictionary_to_store_fluo_temp_data()
+
         # Read JSON data from a file
         with open(json_file, "r") as file:
             json_data = file.read()
@@ -853,7 +875,8 @@ class DsfFitter:
 
         signals = np.array(signals)
 
-        named_wls = [str(wl) + 'nm' for wl in wavelengths]
+        self.wavelengths = wavelengths
+        named_wls = [str(wl) + ' nm' for wl in wavelengths]
 
         for i in range(n_wavelengths):
 
@@ -883,34 +906,6 @@ class DsfFitter:
             self.signal_data_dictionary[wl]   = fluo[non_nas,:]
             self.temp_data_dictionary[wl]     = temperature_to_kelvin(temperature_fixed[non_nas])
 
-        # Add the ratio signal
-        try:
-            
-            signal_name = 'Ratio 350 nm / 330 nm'
-
-            diff_350 = np.abs(wavelengths - 350)
-            diff_330 = np.abs(wavelengths - 330)
-
-            # Check if we have wavelength data between 349 - 351 nm and between 329 - 331 nm.
-            if np.min(diff_350) < 1 and np.min(diff_330) < 1:
-
-                idx350 = np.argmin(diff_350)
-                idx330 = np.argmin(diff_330)
-
-                f350   =  self.signal_data_dictionary[named_wls[idx350]]
-                f330   =  self.signal_data_dictionary[named_wls[idx330]]
-
-                f_ratio = f350 / f330
-
-                self.signal_data_dictionary[signal_name] = f_ratio
-                self.temp_data_dictionary[signal_name]   = self.temp_data_dictionary[named_wls[idx350]]
-
-                named_wls = [signal_name] + named_wls
-
-        except:
-
-            pass
-
         barycenters = []
 
         for i, condition in enumerate(conditions):
@@ -939,11 +934,22 @@ class DsfFitter:
 
         named_wls = ['BCM'] + named_wls
 
-        self.signals = np.array([named_wls])
+        self.signals = np.array(named_wls)
 
         # Assign minimum and maximum wavelengths to self
         self.min_wavelength = np.floor(np.min(wavelengths))
         self.max_wavelength = np.ceil(np.max(wavelengths))
+
+        self.full_spectrum = True
+
+        # Now we try to add the ratio signal
+        idx350 = np.argmin(np.abs(wavelengths - 350))
+        idx330 = np.argmin(np.abs(wavelengths - 330))
+
+        num_wl = named_wls[idx350]
+        den_wl = named_wls[idx330]
+
+        self.create_ratio_signal(num_wl,den_wl)
 
         return None
 
@@ -1044,7 +1050,8 @@ class DsfFitter:
 
         # Now we interpolate the signal data to the given fixed temperature vector
         # Iterate over the wavelengths
-        named_wls = [str(wl) + 'nm' for wl in wavelengths]
+        self.wavelengths = wavelengths
+        named_wls = [str(wl) + ' nm' for wl in wavelengths]
 
         # We require one signal matrix per wavelength
         # with one column per condition
@@ -1081,28 +1088,6 @@ class DsfFitter:
             self.signal_data_dictionary[wl] = fluo[non_nas, :]
             self.temp_data_dictionary[wl]   = temperature_to_kelvin(temperature_fixed[non_nas])
 
-        # Add the ratio signal
-        signal_name = 'Ratio 350 nm / 330 nm'
-
-        diff_350 = np.abs(wavelengths - 350)
-        diff_330 = np.abs(wavelengths - 330)
-
-        # Check if we have wavelength data between 349 - 351 nm and between 329 - 331 nm.
-        if np.min(diff_350) < 1 and np.min(diff_330) < 1:
-
-            idx350 = np.argmin(diff_350)
-            idx330 = np.argmin(diff_330)
-
-            f350 = self.signal_data_dictionary[named_wls[idx350]]
-            f330 = self.signal_data_dictionary[named_wls[idx330]]
-
-            f_ratio = f350 / f330
-
-            self.signal_data_dictionary[signal_name] = f_ratio
-            self.temp_data_dictionary[signal_name] = self.temp_data_dictionary[named_wls[idx350]]
-
-            named_wls = [signal_name] + named_wls
-
         barycenters = []
 
         for i, condition in enumerate(conditions):
@@ -1131,7 +1116,7 @@ class DsfFitter:
 
         named_wls = ['BCM'] + named_wls
 
-        self.signals = np.array([named_wls])
+        self.signals = np.array(named_wls)
 
         self.conditions          = np.array(conditions)
         self.conditions_original = np.array(conditions)
@@ -1139,6 +1124,16 @@ class DsfFitter:
         # Assign minimum and maximum wavelengths to self
         self.min_wavelength = np.floor(np.min(wavelengths))
         self.max_wavelength = np.ceil(np.max(wavelengths))
+        self.full_spectrum  = True
+
+        # Now we try to add the ratio signal
+        idx350 = np.argmin(np.abs(wavelengths - 350))
+        idx330 = np.argmin(np.abs(wavelengths - 330))
+
+        num_wl = named_wls[idx350]
+        den_wl = named_wls[idx330]
+
+        self.create_ratio_signal(num_wl,den_wl)
 
         return None
 
@@ -1221,7 +1216,7 @@ class DsfFitter:
         # Now we have one signal matrix per condition, but we need one signal matrix per wavelength, with
         # the conditions as columns
         # Therefore, for each wavelength, we create one dataframe per condition and then merge them
-
+        self.wavelengths = wavelengths
         named_wls = [str(wl) + ' nm' for wl in wavelengths]
 
         for i, named_wl in enumerate(named_wls):
@@ -1233,15 +1228,6 @@ class DsfFitter:
             self.signal_data_dictionary[named_wl] = wl_signal_matrix
             self.temp_data_dictionary[named_wl]   = temperature_to_kelvin(temperature)
 
-        # Now we try to add the ratio signal
-        ratio_signal_name = 'Ratio 350 nm / 330 nm'
-        idx350 = np.argmin(np.abs(wavelengths - 350))
-        idx330 = np.argmin(np.abs(wavelengths - 330))
-
-        f350 = self.signal_data_dictionary[named_wls[idx350]]
-        f330 = self.signal_data_dictionary[named_wls[idx330]]
-
-        f_ratio = f350 / f330
 
         barycenters = []
 
@@ -1262,16 +1248,49 @@ class DsfFitter:
 
         named_wls = ['BCM'] + named_wls
 
-
-        self.signal_data_dictionary[ratio_signal_name] = f_ratio
-        self.temp_data_dictionary[ratio_signal_name] = self.temp_data_dictionary[named_wls[idx350]]
-
         self.conditions          = np.array(conditions)
         self.conditions_original = np.array(conditions)
 
-        named_wls = [ratio_signal_name] + named_wls
+        self.signals = np.array(named_wls)
 
-        self.signals = np.array([named_wls])
+        self.full_spectrum  = True
+
+        # Now we try to add the ratio signal
+        idx350 = np.argmin(np.abs(wavelengths - 350))
+        idx330 = np.argmin(np.abs(wavelengths - 330))
+
+        num_wl = named_wls[idx350]
+        den_wl = named_wls[idx330]
+
+        self.create_ratio_signal(num_wl,den_wl)
+
+        return None
+
+    def create_ratio_signal(self,signal_num,signal_den):
+
+        """
+        Custom function to create a ratio signal from two signals.
+
+        Args:
+            signal_num (str): Numerator signal key in self.signal_data_dictionary.
+            signal_den (str): Denominator signal key in self.signal_data_dictionary.
+
+        """
+
+        ratio_signal_name = 'Ratio ' + signal_num + ' / ' + signal_den
+
+        fluo_num = self.signal_data_dictionary[signal_num]
+        fluo_den = self.signal_data_dictionary[signal_den]
+
+        fluo_ratio = fluo_num / fluo_den
+
+        self.signal_data_dictionary[ratio_signal_name] = fluo_ratio
+        self.temp_data_dictionary[ratio_signal_name] = self.temp_data_dictionary[signal_num]
+
+        # To prevent error when inserting a longer string if the dtype is str
+        self.signals = np.asarray(self.signals,dtype=object)
+
+        self.signals = np.insert(self.signals, 0, ratio_signal_name)
 
         return None
 
@@ -1398,12 +1417,12 @@ class DsfFitter:
         if len(color_list) == 0:
             return None
 
-        if len(color_list) != len(self.conditions_original):
-            raise ValueError("Length of color_list must match number of conditions.")
-
         # convert to list if it is not one
         if not isinstance(color_list, (list, np.ndarray)):
-            color_list = list(color_list)
+            color_list = [color_list]
+
+        if len(color_list) != len(self.conditions_original):
+            raise ValueError("Length of color_list must match number of conditions.")
 
         self.all_colors = color_list
 
@@ -1422,12 +1441,13 @@ class DsfFitter:
             Sets self.conditions
         """
 
+        # convert to list if it is not one
+        if not isinstance(condition_list, (list, np.ndarray)):
+            condition_list = [condition_list]
+
         if len(condition_list) != len(self.conditions_original):
             raise ValueError("Length of condition_list must match number of conditions.")
 
-        # convert to list if it is not one
-        if not isinstance(condition_list, (list, np.ndarray)):
-            condition_list = list(condition_list)
 
         self.conditions = condition_list
 
@@ -1446,7 +1466,7 @@ class DsfFitter:
 
         # Convert to list if it is not one
         if not isinstance(boolean_mask, (list, np.ndarray)):
-            boolean_mask = list(boolean_mask)
+            boolean_mask = [boolean_mask]
 
         self.conditions = [x for i,x in enumerate(self.conditions) if boolean_mask[i]]
 
@@ -1567,6 +1587,68 @@ class DsfFitter:
 
         return None
 
+    def decompose_spectra(self,min_wl=0,max_wl=800):
+
+        # Raise an error if full_spectrum is False
+        if not self.full_spectrum:
+            raise ValueError("Cannot decompose spectra if full_spectrum is False.")
+
+        selected_rows = []
+
+        keys = list(self.signal_data_dictionary.keys())
+
+        for key in keys:
+
+            condition1 = 'bcm' in key.lower()
+            condition2 = 'ratio' in key.lower()
+            condition3 = 'svd' in key.lower()
+
+            if condition1 or condition2 or condition3:
+                selected_rows.append(False)
+            else:
+                wl = float(key.split(' nm')[0])
+
+                selected_rows.append(wl >= min_wl and wl <= max_wl)
+
+        first_coeff_all = []
+        second_coeff_all = []
+
+        for id,_ in enumerate(self.conditions_original):
+
+            # We need to have temperature as columns and wavelengths as rows
+            signal_2D = generate_2D_signal_matrix(
+                id,
+                self.signal_data_dictionary,
+                selected_rows
+            )
+
+            explained_variance, basis_spectra, coefficients = apply_svd(signal_2D)
+
+
+
+            coeff_first_basis_spectrum = coefficients[0,:]
+            coeff_second_basis_spectrum = coefficients[1,:]
+
+            first_coeff_all.append(coeff_first_basis_spectrum)
+            second_coeff_all.append(coeff_second_basis_spectrum)
+
+        first_coeff_matrix = np.array(first_coeff_all).T
+        second_coeff_matrix = np.array(second_coeff_all).T
+
+        coeff_matrices = [second_coeff_matrix,first_coeff_matrix]
+        coeff_names = ['SVD Second coefficient','SVD First coefficient']
+
+        for svd_signal_name, coeff_matrix in zip(coeff_names, coeff_matrices):
+
+            self.signal_data_dictionary[svd_signal_name] = coeff_matrix
+            self.temp_data_dictionary[svd_signal_name]   = self.temp_data_dictionary[keys[0]]
+
+            self.signals = np.asarray(self.signals,dtype=object)
+
+            self.signals = np.insert(self.signals, 0, svd_signal_name)
+
+        return None
+
     def set_baseline_types(self,poly_order_native=1,poly_order_unfolded=1):
 
         """
@@ -1656,8 +1738,6 @@ class DsfFitter:
 
             bN, kN, qN = None, None, None
             bU, kU, qU = None, None, None
-
-            bI = None
 
             if self.poly_order_native == 0:
 
@@ -2338,10 +2418,6 @@ if test:
 
     mp.cp = 0
     mp.scan_rate = 1
-
-    #mp.irreversible_two_state()
-    #print(mp.model_name)
-    #print(mp.params_all[2])
 
     for combi in [(0,0),(1,1),(2,2)]:
 

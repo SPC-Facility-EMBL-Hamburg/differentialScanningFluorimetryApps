@@ -1,4 +1,4 @@
-# change width, height and plot type 
+# change width, height and plot type
 config_figure <- function(fig,plot_type,plot_width,plot_height) {
   
   fig %>%  config(toImageButtonOptions = list(
@@ -111,8 +111,14 @@ plot_whole_spectra <- function(df,font_size=18,min_wl=0,max_wl=800) {
 }
 
 # Plot maximum of derivative
-generate_max_der_plot <- function(tms,conditions,plot_width, plot_height, plot_type, 
-                                  legend_text_size,axis_size){
+generate_max_der_plot <- function(
+  tms,
+  conditions,
+  plot_width=12,
+  plot_height=10,
+  plot_type='png',
+  legend_text_size=14,
+  axis_size=14){
 
   df2 <- generate_max_der_df(tms,conditions)
 

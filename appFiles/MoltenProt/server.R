@@ -16,6 +16,7 @@ function(input, output, session) {
   #welcome_message()
   
   source(paste0(base_dir,"reactives/reactives.R"           ), local = T)
+  source(paste0(base_dir,"reactives/full_spectrum_reactives.R"), local = T)
   source(paste0(base_dir,"reactives/download_reactives.R"  ), local = T)
   
 }
