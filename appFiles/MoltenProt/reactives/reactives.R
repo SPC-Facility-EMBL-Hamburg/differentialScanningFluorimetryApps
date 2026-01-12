@@ -104,69 +104,32 @@ observeEvent(input$FLf,{
         dsf$signals                <- signal_keys
         dsf$conditions             <- conditions
 
-      }
+      } else {
 
-      if (fileExtension == "txt") {
+        read_file_status <- dsf$import_file(input$FLf$datapath)
 
-        fileType <- detect_txt_file_type(input$FLf$datapath)
-        
-        if (fileType == 'MX3005P')     dsf$load_agilent_mx3005p_qPCR_txt(input$FLf$datapath)
-        if (fileType == 'QuantStudio') dsf$load_quantstudio_txt(input$FLf$datapath)
-        
-      }
-      
-      if (fileExtension == "csv") {
-        dsf$load_csv_file(input$FLf$datapath)
-        
-      }
-      
-      if (fileExtension == "supr") {
-        dsf$load_supr_dsf(input$FLf$datapath)
+        if (!read_file_status) {
 
-        reactives$include_vector <- rep(T,length(dsf$conditions))
-        
-        Sys.sleep(0.5)
+          shinyalert(
+            title = "Error",
+            text = "The selected file could not be read. Please, select a valid DSF data file.",
+            type = "error"
+          )
+          return(NULL)
 
-      }
-      
-      if (fileExtension == "xlsx" | fileExtension == "xls") {
-        
-        # Get file type: DSF or nDSF
-        sheet_names <- get_sheet_names_of_xlsx(input$FLf$datapath)
-        # ... Load the data to the python class ...
-        if ("RFU" %in% sheet_names)  {
-          dsf$load_thermofluor_xlsx(input$FLf$datapath)
-        } else if ("Data Export" %in% sheet_names || "melting-scan" %in% sheet_names) {
-          dsf$load_panta_xlsx(input$FLf$datapath)
-        } else if ("Profiles_raw" %in% sheet_names) {
-          dsf$load_tycho_xlsx(input$FLf$datapath)
-        } else if (file_is_of_type_aunty(input$FLf$datapath)) {
-
-          dsf$load_aunty_xlsx_file(input$FLf$datapath)
-                    # Update the wavelength range slider
-
-          reactives$include_vector <- rep(T,length(dsf$conditions))
-
-        } else if (file_is_of_type_uncle(input$FLf$datapath)) {
-          dsf$load_uncle_multi_channel(input$FLf$datapath)
-
-          reactives$include_vector <- rep(T,length(dsf$conditions))
-        } else {
-          dsf$load_nano_dsf_xlsx(input$FLf$datapath,sheet_names)
         }
-      
-      }
 
+      }
       # Update the wavelength range slider for full spectra data
       reactives$full_spectra <- dsf$full_spectrum
 
       if (dsf$full_spectrum) {
 
+        reactives$include_vector <- rep(T,length(dsf$conditions))
         reactives$min_wl <- dsf$min_wavelength
         reactives$max_wl <- dsf$max_wavelength
 
       }
-
 
       conditions <- c(dsf$conditions)
       dsf$set_signal(dsf$signals[1])
@@ -284,7 +247,6 @@ observeEvent(input$show_colors_column,{
     # If the colors are shown, we use the colors from the dsf object
         color_vector <- dsf$all_colors
     }
-
 
     tables <- get_renderRHandsontable_list(
         conditions_vector,

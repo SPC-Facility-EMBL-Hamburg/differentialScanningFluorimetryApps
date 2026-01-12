@@ -567,7 +567,6 @@ def filter_fluo_by_temp(np_fluo,np_temp,min_temp,max_temp):
 
     return np_tog
 
-
 def filter_temp_by_temp(np_temp,min_temp,max_temp):
 
     """
@@ -586,7 +585,6 @@ def filter_temp_by_temp(np_temp,min_temp,max_temp):
     np_temp_filter = np_temp_filter[np_temp_filter <= max_temp]
 
     return np_temp_filter
-
 
 def median_filter_from_fluo_and_temp_vectors(fluo_vec,temp_vec,rolling_window):
 
@@ -699,7 +697,6 @@ def estimate_initial_tm_from_baseline_fitting(bUs,bNs,kNs,kUs,temps,fit_length,f
     tms = tms_case1 + tms_case2 + tms_case3
 
     return tms
-
 
 def get_two_state_deltaG(dHms, tms, cp):
 
@@ -863,6 +860,14 @@ def get_barycenter(intensities,wavelengths):
 
 def detect_file_type(file):
 
+    """
+    Detect the type of a given data file based on its extension and content.
+    Args:
+        file (str): Path to the data file.
+    Returns:
+        str or None: Detected file type (e.g., 'csv', 'thermofluor', 'panta', 'tycho', 'aunty', 'uncle', 'prometheus', 'supr', 'MX3005P', 'QuantStudio') or None if undetermined.
+    """
+
     file_type = None
 
     if file.endswith(".txt"):
@@ -885,7 +890,7 @@ def detect_file_type(file):
 
             file_type = "thermofluor"
 
-        elif "Data Export" in sheet_names:
+        elif "Data Export" in sheet_names or "melting-scan" in sheet_names:
 
             file_type = "panta"
 

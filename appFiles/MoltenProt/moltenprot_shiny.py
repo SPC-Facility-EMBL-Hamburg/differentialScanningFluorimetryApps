@@ -17,6 +17,7 @@ from svd import (
 from helpers import (
     is_blank,
     temperature_to_kelvin,
+    detect_file_type,
     detect_encoding,
     find_indexes_of_non_signal_conditions,
     find_repeated_words,
@@ -49,7 +50,7 @@ from models import(
 
 )
 
-from constants import R_gas, temp_standard
+from constants import temp_standard
 
 class DsfFitter:
 
@@ -251,6 +252,39 @@ class DsfFitter:
         self.temp_data_dictionary   = {}
 
         return None
+
+    def import_file(self,file):
+
+        file_type = detect_file_type(file)
+
+        if file_type == "prometheus":
+
+            sheet_names = get_sheet_names_of_xlsx(file)
+            self.load_nano_dsf_xlsx(file,sheet_names)
+            return True
+
+        else:
+
+            read_fx_map = {
+                'tycho' : self.load_tycho_xlsx,
+                'thermofluor' : self.load_thermofluor_xlsx,
+                'panta' : self.load_panta_xlsx,
+                'QuantStudio' : self.load_quantstudio_txt,
+                'MX3005P' : self.load_agilent_mx3005p_qPCR_txt,
+                'csv' : self.load_csv_file,
+                'supr' : self.load_supr_dsf,
+                'uncle' : self.load_uncle_multi_channel,
+                'aunty' : self.load_aunty_xlsx_file
+            }
+
+            if file_type in read_fx_map.keys():
+
+                read_fx = read_fx_map.get(file_type)
+                read_fx(file)
+                return True
+
+            else:
+                return False
 
     def load_nano_dsf_xlsx(self, processed_dsf_file, sheet_names=None):
 
@@ -1315,6 +1349,8 @@ class DsfFitter:
 
         self.set_signal_type(which)
 
+        return None
+
     def set_min_max_temp(self):
 
         """
@@ -1362,6 +1398,9 @@ class DsfFitter:
             max_temp (float): Maximum temperature threshold.
         Filter self.fluo and self.temps according to min_temp and max_temp
         """
+
+        min_temp = temperature_to_kelvin(min_temp)
+        max_temp = temperature_to_kelvin(max_temp)
 
         self.fluo = filter_fluo_by_temp(self.fluo,self.temps,min_temp,max_temp)
         self.temps = filter_temp_by_temp(self.temps,min_temp,max_temp)
@@ -1448,7 +1487,6 @@ class DsfFitter:
         if len(condition_list) != len(self.conditions_original):
             raise ValueError("Length of condition_list must match number of conditions.")
 
-
         self.conditions = condition_list
 
         return None
@@ -1474,7 +1512,9 @@ class DsfFitter:
 
             self.colors = [x for i,x in enumerate(self.all_colors) if boolean_mask[i]]
 
-        self.fluo = self.fluo[:,boolean_mask]
+        if self.fluo is not None:
+
+            self.fluo = self.fluo[:,boolean_mask]
 
         return None
 
@@ -1623,8 +1663,6 @@ class DsfFitter:
             )
 
             explained_variance, basis_spectra, coefficients = apply_svd(signal_2D)
-
-
 
             coeff_first_basis_spectrum = coefficients[0,:]
             coeff_second_basis_spectrum = coefficients[1,:]
@@ -2398,6 +2436,8 @@ class DsfFitter:
 
 
 test = False
+
+
 
 if test:
 
