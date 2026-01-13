@@ -148,9 +148,6 @@ class DsfFitter:
         # Initial Tms based on an heuristic algorithm
         self.tms_initial = None
 
-        # Model name, such as EquilibriumTwoState
-        self.model_name = None
-
         # Fitted parameters values
         self.params_all = None
 
@@ -212,7 +209,7 @@ class DsfFitter:
         self.dG_std = None
 
         # Delta CP value, must be set directly by the User
-        self.cp = None
+        self.cp = 0
 
         # Delta CP component to correct the DG value
         self.dCp_component = None
@@ -1467,13 +1464,14 @@ class DsfFitter:
 
         return None
 
-    def set_conditions(self,condition_list):
+    def set_conditions(self,condition_list,original=False):
 
         """
         Set custom condition names for samples.
 
         Args:
             condition_list (list): List of condition names for each sample.
+            original (bool): If True, set the original condition names; if False, use the custom condition names.
         Returns:
             None
         Notes:
@@ -1487,7 +1485,10 @@ class DsfFitter:
         if len(condition_list) != len(self.conditions_original):
             raise ValueError("Length of condition_list must match number of conditions.")
 
-        self.conditions = condition_list
+        if original:
+            self.conditions_original = condition_list
+        else:
+            self.conditions = condition_list
 
         return None
 
@@ -1854,20 +1855,18 @@ class DsfFitter:
 
         return None
 
-    def initialize_model(self,model_name,params_name):
+    def initialize_model(self,params_name):
 
         """
         Initialize internal storage before performing a fit with a model.
 
         Args:
-            model_name (str): Name of the model (used for bookkeeping).
             params_name (list): List of parameter names corresponding to model parameters.
 
         Returns:
             None: Initializes lists used to store fit results and errors.
         """
 
-        self.model_name  = model_name   # EquilibriumTwoState, EmpiricalTwoState, ...
         self.params_name = params_name  # i.e. ['kN', 'bN', 'kU', 'bU', 'dHm', 'Tm']
 
         #  fitted_conditions_indexes is a list of integers: indexes of the conditions that could be 'successfully' fitted
@@ -1953,13 +1952,14 @@ class DsfFitter:
         return None
 
 
-    def equilibrium_two_state(self,fit_algorithm="trf"):
+    def equilibrium_two_state(self,delta_cp=0,fit_algorithm="trf"):
 
         """
         Fit the thermodynamic equilibrium two-state model to the data.
 
         Args:
             fit_algorithm (str): Curve-fit algorithm passed to scipy (default 'trf').
+            delta_cp (float): Heat capacity of unfolding, only to estimate delta Cp contribution
 
         Returns:
             None
@@ -1976,7 +1976,7 @@ class DsfFitter:
             type = "equilibrium"
         )
 
-        self.initialize_model("EquilibriumTwoState",params_name)
+        self.initialize_model(params_name)
 
         init_dH = 80 # kcal/mol
         
@@ -2022,6 +2022,8 @@ class DsfFitter:
 
         dHm_all,      Tm_all     = [p[0] for p in self.params_all], [p[1] for p in self.params_all]
 
+        self.cp = delta_cp
+
         self.dG_std , self.dCp_component = get_two_state_deltaG(dHm_all, Tm_all, self.cp)
         self.T_onset = get_two_state_tonset(dHm_all, Tm_all)
 
@@ -2055,7 +2057,7 @@ class DsfFitter:
             type = "equilibrium"
         )
 
-        self.initialize_model("EquilibriumThreeState",params_name)
+        self.initialize_model(params_name)
 
         t1min = temperature_to_kelvin(t1min)
         t1max = temperature_to_kelvin(t1max)
@@ -2113,7 +2115,7 @@ class DsfFitter:
        
         return None
 
-    def empirical_two_state(self,fit_algorithm="trf",onset_threshold=0.01):
+    def empirical_two_state(self,fit_algorithm="trf"):
 
         """
 
@@ -2121,7 +2123,6 @@ class DsfFitter:
 
         Args:
             fit_algorithm (str): Optimization method for curve_fit (default 'trf').
-            onset_threshold (float): Fraction unfolded that defines Tonset (default 0.01).
 
         Returns:
             None
@@ -2138,7 +2139,7 @@ class DsfFitter:
             type = "empirical"
         )
 
-        self.initialize_model("EmpiricalTwoState",params_name)
+        self.initialize_model(params_name)
 
         low_bounds        = []
         high_bounds       = []
@@ -2212,7 +2213,7 @@ class DsfFitter:
             type = "empirical"
         )
 
-        self.initialize_model("EmpiricalThreeState",params_name)
+        self.initialize_model(params_name)
 
         t1min = temperature_to_kelvin(t1min)
         t1max = temperature_to_kelvin(t1max)
@@ -2267,12 +2268,13 @@ class DsfFitter:
 
         return None
 
-    def irreversible_two_state(self,fit_algorithm="trf"):
+    def irreversible_two_state(self,scan_rate=1,fit_algorithm="trf"):
 
         """
         Fit an irreversible two-state model using an ODE for fraction native versus temperature.
 
         Args:
+            scan_rate (float): Scan rate for the ODE solver (default 1).
             fit_algorithm (str): Curve-fit algorithm used by scipy (default 'trf').
 
         Returns:
@@ -2282,15 +2284,18 @@ class DsfFitter:
             Sets fit attributes and computes a pkd-like quantity (self.pkd).
         """
 
+        self.scan_rate = scan_rate
+
         model, params_name = get_fit_fx_two_state_signal_fit(
             fit_kN=self.fit_kN,
             fit_kU=self.fit_kU,
             fit_qN=self.fit_qN,
             fit_qU=self.fit_qU,
-            type = "irreversible"
+            type = "irreversible",
+            scan_rate_v=self.scan_rate
         )
 
-        self.initialize_model("IrreversibleTwoState",params_name)
+        self.initialize_model(params_name)
 
         low_bounds        = []
         high_bounds       = []
@@ -2352,7 +2357,9 @@ class DsfFitter:
 
             boolean_mask.append(condition)
 
-        return boolean_mask
+        self.boolean_mask_relative_error = boolean_mask
+
+        return None
 
     def filter_by_fitting_std_error(self,threshold_std_error):
 
@@ -2362,9 +2369,10 @@ class DsfFitter:
         Args:
             threshold_std_error (float): Maximum allowed standard error of the fit.
 
-        Returns:
+        Notes:
 
-            boolean_mask (list): List of booleans indicating which conditions meet the error criteria.
+            creates self.boolean_mask_fitting_std_error (list):
+            List of booleans indicating which conditions meet the error criteria.
 
         """
 
@@ -2374,7 +2382,9 @@ class DsfFitter:
 
             boolean_mask.append(std_error <= threshold_std_error)
 
-        return boolean_mask
+        self.boolean_mask_fitting_std_error = boolean_mask
+
+        return None
 
     def filter_by_param_values(self,param_name,low_value,high_value):
 
@@ -2386,9 +2396,10 @@ class DsfFitter:
             low_value (float): Minimum acceptable value for the parameter.
             high_value (float): Maximum acceptable value for the parameter.
 
-        Returns:
+        Notes:
 
-            boolean_mask (list): List of booleans indicating which conditions meet the parameter criteria.
+            Creates self.boolean_mask_param_values (list):
+            List of booleans indicating which conditions meet the parameter criteria.
 
         """
 
@@ -2407,37 +2418,11 @@ class DsfFitter:
 
             boolean_mask.append(condition)
 
-        return boolean_mask
-
-    def update_conditions_after_filtering(self,filtered_indexes):
-
-        """
-        Update fitted conditions and associated data after filtering.
-
-        Args:
-            filtered_indexes (list): List of indexes of conditions to retain.
-        Returns:
-            None
-        Notes:
-            Updates self.fitted_conditions, self.fitted_fluo, and all fit result attributes.
-        """
-
-        self.fitted_conditions_indexes = [self.fitted_conditions_indexes[i] for i in filtered_indexes]
-        self.fitted_conditions        = [self.fitted_conditions[i] for i in filtered_indexes]
-        self.fitted_fluo              = self.fitted_fluo[:,filtered_indexes]
-
-        self.params_all               = [self.params_all[i] for i in filtered_indexes]
-        self.errors_abs_all           = [self.errors_abs_all[i] for i in filtered_indexes]
-        self.errors_percentage_all    = [self.errors_percentage_all[i] for i in filtered_indexes]
-        self.fluo_predictions_all     = [self.fluo_predictions_all[i] for i in filtered_indexes]
-        self.std_error_estimate_all   = [self.std_error_estimate_all[i] for i in filtered_indexes]
+        self.boolean_mask_param_values = boolean_mask
 
         return None
 
-
 test = False
-
-
 
 if test:
 

@@ -202,7 +202,10 @@ def get_irrev_signal_fixed_scan_rate(scan_rate_v):
 
     return fx
 
-def get_fit_fx_two_state_signal_fit(fit_kN,fit_kU,fit_qN,fit_qU,type="equilibrium",scan_rate_v=1):
+def get_fit_fx_two_state_signal_fit(
+        fit_kN,fit_kU,fit_qN,fit_qU,
+        type="equilibrium",
+        scan_rate_v=1):
 
     """
     Returns a function to fit a two-state unfolding model with fixed or variable baselines.

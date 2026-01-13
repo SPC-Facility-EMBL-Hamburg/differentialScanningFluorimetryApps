@@ -1,10 +1,11 @@
 reactives <- reactiveValues(
   data_loaded                    = FALSE, # To control the display of plots/tables
+  nconditions                    = 0,     # Number of total conditions imported
   report_was_created             = FALSE, # To activate the download report button
   global_max_conditions          = 384,   # To determine the load input table number of columns. 
   global_n_rows_conditions_table = 96,    # Number of rows for the load input table
-  include_vector                 = NULL,  # To know which conditions to plot         (for the SUPR DSF data)
-  full_spectra                   = FALSE, # Full spectra instead of fixed wavelength (for the SUPR DSF data)
+  include_vector                 = NULL,  # To know which conditions to plot in the whole spectra plots
+  full_spectra                   = FALSE, # Full spectra instead of single wavelength
   spectra_panel_names            = NULL,
   reportDir                      = NULL,
   model_is_two_state             = NULL,
@@ -54,127 +55,162 @@ renderConditionsTable <- function(tables) {
 
 }
 
+observeEvent(input$dsf_files,{
 
+    reactives$data_loaded <- FALSE
 
-observeEvent(input$FLf,{
+    resetConditionsTable()
 
-  reactives$data_loaded             <- FALSE
+    dsf_data_files <- input$dsf_files$datapath
+    names <- input$dsf_files[[1]]
 
-  resetConditionsTable()
-  
-  withBusyIndicatorServer("Go",{
-    
-    # Check that we have the xlsx file
-    if (!(is.null(input$FLf))) {
-      
-      fileExtension <- getFileNameExtension(input$FLf$datapath)
-      if ((fileExtension == "zip")) {
-        
-        # Create a temporary directory to unzip files
-        unzipDir <- tempfile()
-        dir.create(unzipDir)
-        unzip(input$FLf$datapath,exdir = unzipDir)
-        
-        xlsx_files <- list.files(unzipDir,pattern = "xlsx",recursive=T,full.names = T)
+    sorted_indices <- order(names)
 
-        dsf_objects_from_xlsx_files <- dsf_objects_from_xlsx_files(xlsx_files)
-        
-        dsf_objects   <- dsf_objects_from_xlsx_files$dsf_objects
-        signal_keys   <- dsf_objects_from_xlsx_files$signal_keys
-        
-        signal_values <- c()
-        temp_values   <- c()
-        
-        for (signal in signal_keys) {
-          mergedSignal  <- get_merged_signal_dsf(dsf_objects,signal)
-          signal_values <- c(signal_values,np_array(mergedSignal$signal))
-          temp_values   <- c(temp_values,np_array(mergedSignal$temp))
+    dsf_data_files <- dsf_data_files[sorted_indices]
+    names <- names[sorted_indices]
+
+    withBusyIndicatorServer("Go",{
+
+        i <- 0
+        # iterate over the files
+        for (name in names) {
+
+            i <- i + 1
+            dsf_data_file <- dsf_data_files[i]
+
+            read_file_status <- dsf$add_experiment(dsf_data_file,name)
+
+            if (!read_file_status) {
+
+                shinyalert(
+                    title = "Error",
+                    text = "The selected file could not be read. Please, select a valid DSF data file.",
+                    type = "error"
+                )
+
+                return(NULL)
+            }
         }
-        
-        signal_data_dictionary <- py_dict(signal_keys, signal_values, convert = F)
-        temp_data_dictionary   <- py_dict(signal_keys, temp_values, convert = F)
-        
-        # We assign default time such that the scan rate is 1 degree per minute
-        conditions             <- mergedSignal$conditions
-        conditions_original    <- mergedSignal$conditions_ori
-        
-        dsf$signal_data_dictionary <- signal_data_dictionary
-        dsf$temp_data_dictionary   <- temp_data_dictionary
-        dsf$conditions_original    <- conditions_original
-        dsf$signals                <- signal_keys
-        dsf$conditions             <- conditions
 
-      } else {
+        # Update the wavelength range slider for full spectra data
+        reactives$full_spectra <- dsf$full_spectrum
 
-        read_file_status <- dsf$import_file(input$FLf$datapath)
+        if (dsf$full_spectrum) {
 
-        if (!read_file_status) {
-
-          shinyalert(
-            title = "Error",
-            text = "The selected file could not be read. Please, select a valid DSF data file.",
-            type = "error"
-          )
-          return(NULL)
+            reactives$include_vector <- rep(T,length(dsf$conditions))
+            reactives$min_wl <- dsf$min_wavelength
+            reactives$max_wl <- dsf$max_wavelength
 
         }
 
-      }
-      # Update the wavelength range slider for full spectra data
-      reactives$full_spectra <- dsf$full_spectrum
+        conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
 
-      if (dsf$full_spectrum) {
+        reactives$nconditions <- length(conditions)
 
-        reactives$include_vector <- rep(T,length(dsf$conditions))
-        reactives$min_wl <- dsf$min_wavelength
-        reactives$max_wl <- dsf$max_wavelength
+        updateSelectInput(session, "which",choices = dsf$all_signals)
 
-      }
+        dsf$set_signal(dsf$all_signals[1])
 
-      conditions <- c(dsf$conditions)
-      dsf$set_signal(dsf$signals[1])
-      updateSelectInput(session, "which",choices  = dsf$signals)
+        reactives$global_max_conditions          <- findClosestHigherValue(reactives$nconditions)
+        reactives$global_n_rows_conditions_table <- reactives$global_max_conditions / 4
+
+        tables <- get_renderRHandsontable_list(
+          conditions,
+          reactives$global_n_rows_conditions_table
+        )
+
+        renderConditionsTable(tables)
+
+        temps <- dsf$get_experiment_properties('temps',flatten=TRUE)
+
+        min_temp <- round(min(temps) - 273.15) # To degree celsius
+        max_temp <- round(max(temps) - 273.15) # To degree celsius
+
+        dsf$estimate_fluo_derivates(input$SG_window2)
+
+        updateSliderInput(
+          session,"sg_range",
+          NULL,
+          min = min_temp,
+          max = max_temp,
+          value = c(min_temp+1,max_temp-1)
+        )
       
-      nConditions <- length(conditions)
+        Sys.sleep(0.5)
+        reactives$data_loaded <- TRUE
 
-      reactives$global_max_conditions          <- findClosestHigherValue(nConditions)
-      reactives$global_n_rows_conditions_table <- reactives$global_max_conditions / 4
+    })
 
-      tables <- get_renderRHandsontable_list(
-        conditions,
-        reactives$global_n_rows_conditions_table)
-
-      renderConditionsTable(tables)
-      
-      min_temp <- round(min(dsf$temps) - 273.15) # To degree celsius
-      max_temp <- round(max(dsf$temps) - 273.15) # To degree celsius
-
-      dsf$estimate_fluo_derivates(input$SG_window2)
-
-      updateSliderInput(session,"sg_range",NULL,min = min_temp, max = max_temp,
-                        value = c(min_temp+1,max_temp-1))
-      
-      Sys.sleep(0.5)
-      reactives$data_loaded             <- TRUE
-
-    }})
 },priority = 10)
 
-observeEvent(list(input$table1,input$table2,input$table3,input$table4),{
+observeEvent(
+  list(
+    input$table1,input$table2,input$table3,input$table4,
+    input$which,input$sg_range,input$median_filter,input$SG_window2,
+    input$normalization_type,input$selected_cond_series),{
 
-  req(input$table1)
+  req(reactives$data_loaded)
 
-  table_series <- unique(
-    get_include_vector(
-      input$table1,input$table2,input$table3,input$table4,
-      length(dsf$conditions_original),
-      reactives$global_n_rows_conditions_table,
-      reactives$global_max_conditions)$series_vector
-  )
+  reactives$data_loaded <- FALSE
 
-  current_series <- input$selected_cond_series
+  condition_include_list <- get_include_vector(
+    input$table1,input$table2,input$table3,input$table4,
+    reactives$nconditions,reactives$global_n_rows_conditions_table,
+    reactives$global_max_conditions)
 
-  for (series in table_series) {
+  conditions_vector <- as.character(condition_include_list$conditions_vector)
+  include_vector <- as.logical(condition_include_list$include_vector)
+  series_vector <- condition_include_list$series_vector
+
+  color_vector <- as.character(condition_include_list$color_vector)
+
+  dsf$set_signal(input$which)
+
+  # Get signal window range
+  sg_range_min_kelvin <- input$sg_range[1] + 273.15
+  sg_range_max_kelvin <- input$sg_range[2] + 273.15
+
+  temps <- dsf$get_experiment_properties('temps',flatten=TRUE)
+
+  left_bound <- max( sg_range_min_kelvin,min(temps))
+  right_bound <- min( sg_range_max_kelvin,max(temps))
+
+  # ... Modify in place the python class fluorescence signal according to the selected signal window range ...
+  dsf$filter_by_temperature(left_bound,right_bound)
+
+  if (input$selected_cond_series != "ALL") {
+    include_vector <- include_vector & (series_vector == input$selected_cond_series)
+  }
+
+  reactives$include_vector <- include_vector
+
+  # ... use only the conditions selected by the user ...
+  dsf$set_conditions(conditions_vector)
+
+  dsf$set_colors(color_vector)
+
+  # Return NULL if no conditions are selected
+  if (all(!include_vector))   return(NULL)
+
+  dsf$select_conditions(include_vector)
+
+  median_filter <- get_median_filter(input$median_filter)
+  if (median_filter > 0) {dsf$median_filter(median_filter)}
+
+  exps <- dsf$available_experiments
+
+  for (exp in exps) {
+
+    py_obj <- dsf$experiments[[exp]]
+    py_obj$fluo <- normalize_fluo_matrix_by_option(input$normalization_type,py_obj$fluo,py_obj$temps)
+
+  }
+
+  dsf$estimate_fluo_derivates(input$SG_window2)
+
+  current_series <- c(input$selected_cond_series)
+
+  for (series in series_vector) {
     if (!(series %in%  current_series)) {
       # Add new series found in the table
       current_series <- c(current_series,series)
@@ -182,7 +218,7 @@ observeEvent(list(input$table1,input$table2,input$table3,input$table4),{
   }
 
   for (series in current_series) {
-    if (!(series %in%  table_series)) {
+    if (!(series %in%  series_vector)) {
       # Delete series no longer in the table, except 'ALL'
       if (series == 'ALL') {next}
       current_series <- current_series[current_series != series]
@@ -190,7 +226,9 @@ observeEvent(list(input$table1,input$table2,input$table3,input$table4),{
   }
 
   updateSelectInput(session, "selected_cond_series",choices  = c(current_series))
-  
+
+  reactives$data_loaded <- TRUE
+
 },ignoreInit = TRUE)
 
 observeEvent(input$layout_file$datapath,{
@@ -199,9 +237,10 @@ observeEvent(input$layout_file$datapath,{
   if (!(is.null(input$layout_file))) {
     
     conditions <- load_layout(input$layout_file$datapath)
-    tot_cond <- length(dsf$conditions)
-    dsf$conditions          <- conditions[1:tot_cond]
-    dsf$conditions_original <- conditions[1:tot_cond]
+
+    dsf$set_conditions(conditions[1:reactives$nconditions])
+    dsf$set_conditions(conditions[1:reactives$nconditions],original=TRUE)
+
     tables <- get_renderRHandsontable_list(conditions,reactives$global_n_rows_conditions_table)
     
     renderConditionsTable(tables)
@@ -216,8 +255,12 @@ observeEvent(input$sort_conditions,{
   resetConditionsTable()
 
   dsf$sort_by_conditions_name(input$sort_conditions)
-  tables <- get_renderRHandsontable_list(dsf$conditions_original,
-                                         reactives$global_n_rows_conditions_table)
+
+  conditions_original <- dsf$get_experiment_properties('conditions_original',flatten=TRUE)
+
+  tables <- get_renderRHandsontable_list(
+    conditions_original,reactives$global_n_rows_conditions_table
+  )
   
   renderConditionsTable(tables)
   
@@ -229,11 +272,9 @@ observeEvent(input$show_colors_column,{
 
     show_colors_column <- input$show_colors_column
 
-    nconditions <- length(dsf$conditions_original)
-
     condition_include_list <- get_include_vector(
         input$table1,input$table2,input$table3,input$table4,
-        nconditions,reactives$global_n_rows_conditions_table,
+        reactives$nconditions,reactives$global_n_rows_conditions_table,
         reactives$global_max_conditions)
 
     conditions_vector      <- as.character(condition_include_list$conditions_vector)
@@ -245,7 +286,7 @@ observeEvent(input$show_colors_column,{
         color_vector <- as.character(condition_include_list$color_vector)
     } else {
     # If the colors are shown, we use the colors from the dsf object
-        color_vector <- dsf$all_colors
+        color_vector <- dsf$get_experiment_properties('all_colors',flatten=TRUE)
     }
 
     tables <- get_renderRHandsontable_list(
@@ -260,76 +301,18 @@ observeEvent(input$show_colors_column,{
 
 })
 
-modify_fluo_temp_cond <- reactive({
-
-  nconditions <- length(dsf$conditions_original)
-  
-  condition_include_list <- get_include_vector(
-    input$table1,input$table2,input$table3,input$table4,
-    nconditions,reactives$global_n_rows_conditions_table,
-    reactives$global_max_conditions)
-  
-  conditions_vector      <- as.character(condition_include_list$conditions_vector)
-  include_vector         <- as.logical(condition_include_list$include_vector)
-  series_vector          <- condition_include_list$series_vector
-
-  color_vector <- as.character(condition_include_list$color_vector)
-
-  dsf$set_signal(input$which)
-
-  # Get signal window range
-  sg_range_min_kelvin <- input$sg_range[1] + 273.15
-  sg_range_max_kelvin <- input$sg_range[2] + 273.15
-  
-  left_bound    <-   max( sg_range_min_kelvin,min(dsf$temps) )
-  right_bound   <-   min( sg_range_max_kelvin,max(dsf$temps) )
-  
-  # ... Modify in place the python class fluorescence signal according to the selected signal window range ...
-  dsf$filter_by_temperature(left_bound,right_bound)
-
-  if (input$selected_cond_series != "ALL") {
-    include_vector         <- include_vector & (series_vector == input$selected_cond_series)
-  }
-  
-  reactives$include_vector <- include_vector
-
-  # ... use only the conditions selected by the user ...
-  dsf$set_conditions(conditions_vector)
-
-  dsf$set_colors(color_vector)
-
-  # Return NULL if no conditions are selected
-  if (all(!include_vector))   return(NULL)
-  
-  dsf$select_conditions(include_vector)
-
-  median_filter <- get_median_filter(input$median_filter)
-  if (median_filter > 0) {dsf$median_filter(median_filter)}
-
-  dsf$fluo <- normalize_fluo_matrix_by_option(input$normalization_type,dsf$fluo,dsf$temps)
-
-  dsf$estimate_fluo_derivates(input$SG_window2)
-
-  return(condition_include_list$conditions_vector)
-  
-})
-
 # Render signal plot
 output$signal <- renderPlotly({
   
   req(input$table1)
   req(reactives$data_loaded)
-  
-  if (is.null(modify_fluo_temp_cond())) {return(NULL)}
-  
-  fluo_m <- make_df4plot(
-    dsf$fluo,
-    dsf$conditions,
-    dsf$temps
-  )
-  
+
+  fluo_m <- py_dsf_to_df(dsf)
+
+  colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
+
   if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,dsf$colors,dsf$signal_type,
+    p <- plot_fluo_signal(fluo_m,colors,input$which,
                           input$plot_width, input$plot_height, 
                           input$plot_type,input$plot_font_size,input$plot_axis_size,
                           show_x_grid=input$show_x_grid,
@@ -351,20 +334,26 @@ output$signal_der1 <- renderPlotly({
   
   req(input$table1)
   req(reactives$data_loaded)
-  req(dsf$derivative)
-  
-  if (length(dsf$conditions) > reactives$global_max_conditions - reactives$global_n_rows_conditions_table*1) {req(input$table4)}
-  
-  modify_fluo_temp_cond()
-  
-  fluo_m <- make_df4plot(
-    dsf$derivative,
-    dsf$conditions,
-    dsf$temps
-  )
+
+  derivatives <- dsf$get_experiment_properties('derivative')
+
+  # find if there is at least one non null derivative
+  if (all(sapply(derivatives, is.null))) {
+    return(NULL)
+  }
+
+  max_cond <- reactives$global_max_conditions
+  n_rows   <- reactives$global_n_rows_conditions_table
+
+  if (reactives$nconditions > max_cond - n_rows*1) {
+    req(input$table4)
+  }
+
+  fluo_m <- py_dsf_to_df(dsf,mode = 'derivative')
+  colors <- dsf$get_experiment_properties('all_colors',flatten=TRUE)
 
   if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,dsf$colors,"First derivative",
+    p <- plot_fluo_signal(fluo_m,colors,"First derivative",
                           input$plot_width, input$plot_height, 
                           input$plot_type,input$plot_font_size,input$plot_axis_size,
                           show_x_grid=input$show_x_grid,
@@ -386,18 +375,19 @@ output$signal_der2 <- renderPlotly({
   #req(fluo_signal_loaded())
   req(input$table1)
   req(reactives$data_loaded)
-  req(dsf$derivative2)
-  
-  modify_fluo_temp_cond()
-  
-  fluo_m <- make_df4plot(
-    dsf$derivative2,
-    dsf$conditions,
-    dsf$temps
-  )
+
+  derivatives2 <- dsf$get_experiment_properties('derivative2')
+
+  # find if there is at least one non null derivative
+  if (all(sapply(derivatives2, is.null))) {
+    return(NULL)
+  }
+
+  fluo_m <- py_dsf_to_df(dsf,mode = 'derivative2')
+  colors <- dsf$get_experiment_properties('all_colors',flatten=TRUE)
   
   if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,dsf$colors,"Second derivative",
+    p <- plot_fluo_signal(fluo_m,colors,"Second derivative",
                           input$plot_width, input$plot_height, 
                           input$plot_type,input$plot_font_size,input$plot_axis_size,
                           show_x_grid=input$show_x_grid,
@@ -416,16 +406,21 @@ output$signal_der2 <- renderPlotly({
 # Render maximum of derivative plot
 output$tm_derivative <- renderPlotly({
   
-  #req(fluo_signal_loaded())
   req(input$table1)
   req(reactives$data_loaded)
-  req(dsf$tms_from_deriv)
-  
-  modify_fluo_temp_cond()
-  
+
+  # Require that at least one derivative is available
+  derivatives <- dsf$get_experiment_properties('derivative')
+  if (all(sapply(derivatives, is.null))) {
+    return(NULL)
+  }
+
+  conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
+  tms_from_deriv <- dsf$get_experiment_properties('tms_from_deriv',flatten=TRUE)
+
   p <- generate_max_der_plot(
-    dsf$tms_from_deriv,
-    dsf$conditions,
+    tms_from_deriv,
+    conditions,
     input$plot_width,
     input$plot_height,
     input$plot_type,
@@ -435,8 +430,7 @@ output$tm_derivative <- renderPlotly({
   
   return(p)
   
-}
-)
+})
 
 # Fit when the user presses the button
 fluo_fit_data <- eventReactive(input$btn_cal, {
@@ -456,8 +450,14 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
 
   #req(fluo_signal_loaded())
   req(input$table1)
+
+  all_fluo <- dsf$get_experiment_properties('fluo',flatten=TRUE)
+
+  # Verify that one of the selected conditions has fluorescence data
+  have_data <- !all(sapply(all_fluo, is.null))
+
   # check we have data to fit
-  if (ncol(dsf$fluo)>0)   {
+  if (have_data)   {
     
     dsf$estimate_baselines_parameters(input$temp_range_baseline_estimation)
 
@@ -469,9 +469,8 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
       # ... Fit according to selection ...
       if (model_selected == "EquilibriumTwoState"  )   {
 
-        dsf$cp <- input$delta_cp
+        dsf$equilibrium_two_state(input$delta_cp)
 
-        dsf$equilibrium_two_state()
       }
       
       if (model_selected == "EquilibriumThreeState")   {
@@ -494,22 +493,19 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
       }
       
       if (model_selected == "IrreversibleTwoState" )   {
-        dsf$scan_rate <- input$scan_rate
-        dsf$irreversible_two_state()
+        dsf$irreversible_two_state(input$scan_rate)
       }
 
     })
-    
-    fluo_m <- make_list_df4plot(
-      dsf$fitted_fluo,
-      dsf$fitted_conditions,
-      dsf$temps,
-      global_chunck_n
-    )
-    
-    if (length(dsf$fluo_predictions_all) == 0 ) return(NULL)
 
-    max_std_err <- max(unlist(dsf$std_error_estimate_all))
+    fluo_m <- make_list_df4plot(dsf,global_chunck_n,mode='experimental')
+
+    fluo_predictions_all <- dsf$get_experiment_properties('fluo_predictions_all',flatten=TRUE)
+
+    if (length(fluo_predictions_all) == 0 ) return(NULL)
+
+    std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
+    max_std_err <- max(std_error_estimate_all)
 
     updateNumericInput(
         session,
@@ -520,15 +516,8 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
         step  = signif(max_std_err/100,3)
     )
 
-    fluo_pred_matrix <- t(do.call(rbind,dsf$fluo_predictions_all))
+    fluo_m_pred <- make_list_df4plot(dsf,global_chunck_n,mode='fitted')
 
-    fluo_m_pred <- make_list_df4plot(
-        fluo_pred_matrix,
-        dsf$fitted_conditions,
-        dsf$temps,
-        global_chunck_n
-        )
-    
     return(list("fluo_fit_real"=fluo_m,"fluo_fit_pred"=fluo_m_pred))
     
   } else {
@@ -537,7 +526,7 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
   
 })
 
-output$three_state_model_selected             <- reactive({
+output$three_state_model_selected <- reactive({
   return( grepl("Three",input$model_selected) ) 
 })
 
@@ -577,10 +566,13 @@ output$params_table <- renderTable({
   req(fluo_fit_data())
 
   get_sorted_params_table(
-    dsf$params_all,dsf$fitted_conditions,
-    global_chunck_n,dsf$params_name,
+    dsf$params_all,
+    dsf$fitted_conditions,
+    global_chunck_n,
+    dsf$params_name,
     input$sort_table_parameter
-    )
+  )
+
 })
 
 output$params_table_errors <- renderTable({

@@ -1,14 +1,19 @@
 box(title = "Input", width = 3, solidHeader = T, status = "primary", 
     fluidRow(
       
-      column(9, p(HTML("<b>1. nDSF or DSF file </b>"),
+      column(9, p(HTML("<b>1. DSF files</b>"),
                    span(shiny::icon("info-circle"), id = "info_uu1-1"),
-                    fileInput("FLf", NULL,accept = c(".xlsx",".zip",".xls",".txt",'.csv',
-                                                     '.supr')),
-                   tippy::tippy_this(elementId = "info_uu1-1",
-                                     tooltip = "Check the User Guide to understand the format of the input files. 
-                   Hint: In the case of Prometheus, Panta, or Tycho spreadsheet files, you can combine them in a zip (.zip extension) 
-                   and load them together. The zip should have only one type of file.",placement = "right"))),
+                    fileInput(
+                      "dsf_files",
+                      NULL,
+                      accept = c(".xlsx",".zip",".xls",".txt",'.csv','.supr'),
+                      multiple = TRUE
+                    ),
+                   tippy::tippy_this(
+                     elementId = "info_uu1-1",
+                     tooltip = "Check the User Guide to understand the format of the input files.
+                      Many files can be imported together.",
+                     placement = "right"))),
       
       # Little hack to use the withBusyIndicatorUI function (loading spinner)
       # This button is not visible in the UI

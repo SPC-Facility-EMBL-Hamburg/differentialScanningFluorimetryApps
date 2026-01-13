@@ -45,10 +45,10 @@ def test_set_signal():
 
 def test_temperature_range():
 
-    fitters.filter_by_temperature(30,60)
+    fitters.filter_by_temperature(30,84)
 
     assert np.min(fitters.experiments['0'].temps) >= 30 + 273.15
-    assert np.max(fitters.experiments['0'].temps) <= 60 + 273.15
+    assert np.max(fitters.experiments['0'].temps) <= 84 + 273.15
 
 def test_set_colors():
 
@@ -91,17 +91,24 @@ def test_select_conditions():
 
 def test_median_filter():
 
-    fitters.median_filter(8)
+    fitters.median_filter(2)
 
     assert fitters.experiments['0'].fluo.shape[1] == 8 # The panta file has 8 conditions
     assert fitters.experiments['1'].fluo is None # The signal 350nm is not available in qPCR file
 
+    # Reset back to no filter
+    fitters.median_filter(0)
+
 def test_estimate_fluo_derivates():
 
-    fitters.estimate_fluo_derivates()
+    fitters.estimate_fluo_derivates(temp_window_length=8)
 
     assert fitters.experiments['0'].derivative.shape[1] == 8 # The panta file has 8 conditions
     assert fitters.experiments['0'].derivative2.shape[1] == 8 # The panta file has 8 conditions
+
+    expected = [348.44,345.85,342.19,337.56]
+
+    np.testing.assert_allclose(fitters.experiments['3'].tms_from_deriv[:4],expected,rtol=1e-2)
 
 def test_decompose_spectra():
 
@@ -122,6 +129,45 @@ def test_estimate_baselines_parameters():
 
     fitters.estimate_baselines_parameters()
 
-    np.testing.assert_allclose(fitters.experiments['3'].qUs[0],0.366,rtol=1e-2)
+    np.testing.assert_allclose(fitters.experiments['3'].qUs[0],-1.01,rtol=1e-2)
 
+def test_equilibrium_two_state():
 
+    boolean_mask = [True] * 4 + [False] * 44
+    fitters.select_conditions(boolean_mask)
+    fitters.estimate_baselines_parameters()
+    fitters.equilibrium_two_state(delta_cp=0)
+
+    np.testing.assert_allclose(fitters.experiments['3'].dG_std[1],13.99,rtol=1e-2)
+
+def test_empirical_two_state():
+
+    fitters.empirical_two_state()
+
+    np.testing.assert_allclose(fitters.experiments['3'].score[1],479.21,rtol=1e-2)
+
+def test_filter_by_relative_error():
+
+    fitters.filter_by_relative_error(100)
+
+    print(fitters.experiments['3'].errors_percentage_all)
+
+    mask = fitters.experiments['3'].boolean_mask_relative_error
+
+    assert mask == [False,True,True,True]
+
+def test_filter_by_fitting_std_error():
+
+    fitters.filter_by_fitting_std_error(10)
+
+    mask = fitters.experiments['3'].boolean_mask_fitting_std_error
+
+    assert mask == [True] * 4
+
+def test_filter_by_param_values():
+
+    fitters.filter_by_param_values('Tm',50+273.15,75+273.15)
+
+    mask = fitters.experiments['3'].boolean_mask_param_values
+
+    assert mask == [True] * 4

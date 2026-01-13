@@ -46,7 +46,7 @@ for (fn in c(fs1,fs2,fs3,fs4,fs5))  { file.remove(fn) }
 
 ## Input 
 
-File:                           `r input$FLf$name`   
+Files:                           `r input$dsf_files$name`
 Signal:                         `r input$which`          
 Median Filter:                  `r input$median_filter`              
 Minimum Temperature:            `r min(input$sg_range)`             

@@ -165,9 +165,14 @@ renderSpectralPlots <- function() {
   all_signals <- dsf$signal_data_dictionary
   all_temps   <- dsf$temp_data_dictionary
 
-  tog <- join_all_signals(all_signals,all_temps,
-                          c(dsf$conditions),reactives$include_vector,
-                          input$sg_range[1],input$sg_range[2])
+  tog <- join_all_signals(
+    all_signals,
+    all_temps,
+    c(dsf$conditions),
+    reactives$include_vector,
+    input$sg_range[1],
+    input$sg_range[2]
+  )
 
   maxPanels     <- length(tabPanelNames)
 

@@ -80,6 +80,44 @@ make_df4plot <- function(fluo_matrix,cond_vector,temp_vector) {
   
 }
 
+py_dsf_to_df <- function(dsf_py_obj,mode='signal') {
+
+  available_experiments <- dsf_py_obj$available_experiments
+
+  dfs <- list()
+
+  for (name in available_experiments) {
+
+    py_exp <- dsf_py_obj$experiments[[name]]
+
+    if (mode == 'derivative') {
+      fluo <- py_exp$derivative
+    } else if (mode == 'derivative2') {
+      fluo <- py_exp$derivative2
+    } else {
+      fluo <- py_exp$fluo
+    }
+
+    temps <- py_exp$temps
+    conds <- py_exp$conditions
+
+    fluo_m <- make_df4plot(
+      fluo,
+      conds,
+      temps
+    )
+
+    dfs[[length(dfs)+1]] <- fluo_m
+
+  }
+
+  df <- do.call(rbind,dfs)
+
+  return(df)
+
+}
+
+
 ##  Make fluorescence dataframe list for plotting. Needs the fluorescence matrix, 
 ##  conditions and temperatures. chunck_n determines the number of capillaries in each dataframe of the list
 ## The fluorescence matrix columns matches the conditions vector and the rows matches the temperature vector
@@ -87,19 +125,44 @@ make_df4plot <- function(fluo_matrix,cond_vector,temp_vector) {
 
 ## Returns a list of dataframes of size: # conditions / chunck_n 
 
-make_list_df4plot <- function(fluo_matrix,cond_vector,temp_vector,chunck_n) {
-  
-  df           <- data.frame(fluo_matrix)
-  names4df     <- c(paste0(1:length(cond_vector),"_",cond_vector))
-  colnames(df) <- names4df
-  df$temp      <- temp_vector
-  
-  fluo_m           <- reshape2::melt(df,id.vars="temp")
-  colnames(fluo_m) <- c("temp","cond_","fluo")
-  
-  fluo_m$Condition <- sapply(as.character(fluo_m$cond_), function(x) paste(strsplit(x,"_")[[1]][-1],collapse="_") )
-  
-  sels     <- split_vec(as.vector(names4df),chunck_n)
+make_list_df4plot <- function(dsf_py_obj,chunck_n,mode='experimental') {
+
+  exps <- dsf_py_obj$available_experiments
+  dfs  <- list()
+
+  names4df_all <- c()
+
+  for (exp in exps) {
+
+    py_obj <- dsf_py_obj$experiments[[exp]]
+
+    if (mode == 'experimental') {
+      fluo_matrix <- py_obj$fitted_fluo
+    } else if (mode == 'fitted') {
+      fluo_matrix <- t(do.call(rbind,py_obj$fluo_predictions_all))
+    }
+
+    temp_vector <- py_obj$temps
+    cond_vector <- py_obj$fitted_conditions
+
+    df           <- data.frame(fluo_matrix)
+    names4df     <- c(paste0(1:length(cond_vector),"_",cond_vector))
+    colnames(df) <- names4df
+    df$temp      <- temp_vector
+
+    fluo_m           <- reshape2::melt(df,id.vars="temp")
+    colnames(fluo_m) <- c("temp","cond_","fluo")
+
+    fluo_m$Condition <- sapply(as.character(fluo_m$cond_), function(x) paste(strsplit(x,"_")[[1]][-1],collapse="_") )
+
+    dfs[[length(dfs)+1]] <- fluo_m
+    names4df_all <- c(names4df_all,names4df)
+
+  }
+
+  fluo_m <- do.call(rbind,dfs)
+
+  sels     <- split_vec(as.vector(names4df_all),chunck_n)
   df_list  <- lapply(sels, function(s) fluo_m %>% filter(cond_ %in% s))
     
   return(df_list)

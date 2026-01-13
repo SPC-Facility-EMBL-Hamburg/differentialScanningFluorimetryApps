@@ -2,7 +2,8 @@ options(shiny.maxRequestSize=100*1024^2)
 options(stringsAsFactors = F)
 
 source_python("helpers.py")
-source_python("moltenprot_shiny.py")
+#source_python("moltenprot_shiny.py")
+source_python("main.py")
 
 source("server_files/load_input_helpers.R")
 source("server_files/helpers.R")
@@ -11,11 +12,9 @@ source("server_files/plot_functions.R")
 function(input, output, session) {
   
   # ... Initialize python_nanoDSF class ...
-  dsf <- DsfFitter()
-  
-  #welcome_message()
-  
-  source(paste0(base_dir,"reactives/reactives.R"           ), local = T)
+  dsf <- ManyDsfFitters()
+
+  source(paste0(base_dir,"reactives/reactives.R"), local = T)
   source(paste0(base_dir,"reactives/full_spectrum_reactives.R"), local = T)
   source(paste0(base_dir,"reactives/download_reactives.R"  ), local = T)
   
