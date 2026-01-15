@@ -61,13 +61,13 @@ cat("## Fluorescence Signal \n")
 
 ```{r, echo=FALSE,warning = FALSE,out.width = "100%",fig.align = "center",eval=input$report_include_signal,include=TRUE}
 
-fluo_m <- make_df4plot(dsf$fluo,dsf$conditions,dsf$temps)
+fluo_m <- py_dsf_to_df(dsf)
 
 fluo_m <- fluo_m %>% group_by(cond_) %>% nest()
 
 splitted_conditions <- split_vec(fluo_m$cond_,20)
 
-colors <- dsf$colors
+colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
 splitted_colors <- split_vec(colors,20)
 
 i <- 0
@@ -104,11 +104,11 @@ cat("## First Derivative \n")
 <br><br>
 ```{r, echo=FALSE,warning = FALSE,out.width = "100%",fig.align = "center",eval=input$report_include_der,include=FALSE}
 
-fluo_m <- make_df4plot(dsf$derivative,dsf$conditions,dsf$temps)
+fluo_m <- py_dsf_to_df(dsf,mode="derivative")
 fluo_m <- fluo_m %>% group_by(cond_) %>% nest()
 
 splitted_conditions <- split_vec(fluo_m$cond_,20)
-colors <- dsf$colors
+colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
 splitted_colors <- split_vec(colors,20)
 
 i <- 0
@@ -144,13 +144,17 @@ cat("## Maxium of Derivative \n")
 <br><br>
 ```{r, echo=FALSE,warning = FALSE,out.width = "100%",fig.align = "center",eval=input$report_include_max_der,include=FALSE}
 
-splitted_conditions <- split_vec(1:length(dsf$conditions),20)
+conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
+splitted_conditions <- split_vec(1:length(conditions),20)
 
 i <- 0
 for (split_cond in splitted_conditions) {
   i <- i+1
   
-  p <-  generate_max_der_plot(dsf$tms_from_deriv[split_cond],dsf$conditions[split_cond],
+  tms_from_deriv <- dsf$get_experiment_properties('tms_from_deriv',flatten=TRUE)
+  conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
+
+  p <-  generate_max_der_plot(tms_from_deriv[split_cond],conditions[split_cond],
                              input$plot_width, input$plot_height, 
                              input$plot_type,input$plot_font_size,input$plot_axis_size)
   
@@ -170,9 +174,24 @@ cat("## Fitted Parameters \n")
 <br><br>
 ```{r, echo=FALSE,warning = FALSE,out.width = "100%",fig.align = "center", eval=input$report_include_fitted_params_table}
 
-knitr::kable(
-  get_sorted_params_table(dsf$params_all,dsf$fitted_conditions,global_chunck_n,dsf$params_name,input$sort_table_parameter))
+params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
+params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+params_name <- unique(params_name)
 
+# We need a list of vectors, and we had a matrix before
+params_all <- split(params_all, seq(nrow(params_all)))
+
+fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
+table <- get_sorted_params_table(
+  params_all,
+  fitted_conditions,
+  global_chunck_n,
+  params_name,
+  input$sort_table_parameter
+)
+
+knitr::kable(table)  
 ```
 
 ```{r, eval=input$report_include_fitted_params_errors_table,tidy=FALSE,results='asis',echo=FALSE}
@@ -183,7 +202,19 @@ cat("## Fitted Parameters Relative Errors (%) \n")
 
 ```{r, echo=FALSE,warning = FALSE,out.width = "100%",fig.align = "center", eval=input$report_include_fitted_params_errors_table}
 
-table <- get_sorted_params_table_errors(dsf$errors_percentage_all,dsf$fitted_conditions,dsf$params_name,input$sort_table_parameter)
+errors_percentage_all <- dsf$get_experiment_properties('errors_percentage_all',flatten=TRUE)
+fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+params_name <- unique(params_name)
+
+# We need a list of vectors, and we had a matrix before
+errors_percentage_all <- split(errors_percentage_all, seq(nrow(errors_percentage_all)))
+
+table <- get_sorted_params_table_errors(
+  errors_percentage_all,
+  fitted_conditions,
+  params_name,
+  input$sort_table_parameter)
 
 last_col <- length(colnames(table))-1
 
@@ -202,7 +233,8 @@ cat("## Fitting Plots \n")
 <br><br>
 ```{r, echo=FALSE,warning = FALSE,out.width = "100%",fig.align = "center" , eval=input$report_include_fitting_plots}
 
-total_plots <- ceiling(length(dsf$fitted_conditions)/global_chunck_n)
+fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+total_plots <- ceiling(length(fitted_conditions)/global_chunck_n)
 
 for (selected in 1:total_plots) {
   real_data  <- fluo_fit_data()$fluo_fit_real
@@ -255,17 +287,28 @@ cat(str_vec,sep="\n")
 
 selected_indexes <- filter_conditions()
 
+params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+params_name <- unique(params_name)
+
+params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
+# We need a list of vectors, and we had a matrix before
+params_all <- split(params_all, seq(nrow(params_all)))
+
+fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
 if (any(selected_indexes) & input$model_selected == "EquilibriumTwoState") {
-  dh_position <- which(dsf$params_name == "DH")
-  dhs <- sapply(dsf$params_all, function(x) x[dh_position])
+  dh_position <- which(params_name == "DH")
+  dhs <- sapply(params_all, function(x) x[dh_position])
   
-  tm_position <- which(dsf$params_name == "Tm")  
-  tms <- sapply(dsf$params_all, function(x) x[tm_position])
+  tm_position <- which(params_name == "Tm")  
+  tms <- sapply(params_all, function(x) x[tm_position])
   
+  T_onset <- dsf$get_experiment_properties('T_onset',flatten=TRUE)
+
   dhs               <- dhs[selected_indexes]
   tms               <- tms[selected_indexes]
-  fitted_conditions <- dsf$fitted_conditions[selected_indexes]
-  t_onset           <- dsf$T_onset[selected_indexes]
+  fitted_conditions <- fitted_conditions[selected_indexes]
+  t_onset           <- T_onset[selected_indexes]
   
   splitted_conditions <- split_vec(1:length(fitted_conditions),20)
   
@@ -297,11 +340,21 @@ knitr::include_graphics(files)
 
 if (any(selected_indexes) & (input$model_selected %in% c("EquilibriumTwoState","EmpiricalTwoState"))) {
 
-  tm_position <- which(dsf$params_name == "Tm")  
-  tms <- sapply(dsf$params_all, function(x) x[tm_position])
+
+  params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+  params_name <- unique(params_name)
+
+  params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
+  # We need a list of vectors, and we had a matrix before
+  params_all <- split(params_all, seq(nrow(params_all)))
+
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
+  tm_position <- which(params_name == "Tm")  
+  tms <- sapply(params_all, function(x) x[tm_position])
   
   tms               <- tms[selected_indexes]
-  fitted_conditions <- dsf$fitted_conditions[selected_indexes]
+  fitted_conditions <- fitted_conditions[selected_indexes]
   
   splitted_conditions <- split_vec(1:length(fitted_conditions),20)
   i <- 0
@@ -314,7 +367,7 @@ if (any(selected_indexes) & (input$model_selected %in% c("EquilibriumTwoState","
                         input$plot_type_results,input$plot_axis_size_results)
     
     save_image(fig,paste0(i,"tmPlot.png"))
-}
+  }
   
 }
 

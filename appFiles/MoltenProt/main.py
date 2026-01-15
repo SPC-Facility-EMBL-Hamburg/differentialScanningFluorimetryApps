@@ -15,10 +15,10 @@ class ManyDsfFitters:
 
     def __init__(self):
 
-
         self.experiments = {}  # Dictionary where each key value pair corresponds to one DSF experiment
         self.all_signals = None  # List of all signals available in all experiments
         self.available_experiments = None  # List of names of all experiments available, that can handle the selected signal
+        self.full_spectrum_experiments = None
 
     def add_experiment(self, file,name=None):
 
@@ -36,10 +36,34 @@ class ManyDsfFitters:
             self.experiments[name] = fitter
 
             self.set_unique_signals()
+            self.set_full_spectrum()
 
             return read_status
 
         return False
+
+    def set_full_spectrum(self):
+
+        self.full_spectrum_experiments = []
+
+        for name, fitter in self.experiments.items():
+
+            full_spectrum = fitter.full_spectrum
+
+            if full_spectrum:
+
+                self.full_spectrum_experiments.append(name)
+
+        self.full_spectrum = len(self.full_spectrum_experiments) > 0
+
+        if self.full_spectrum:
+
+            wls = self.get_experiment_properties('wavelengths',flatten=True)
+
+            self.min_wavelength = np.min(wls)
+            self.max_wavelength = np.max(wls)
+
+        return None
 
     def set_unique_signals(self):
 
@@ -51,9 +75,6 @@ class ManyDsfFitters:
             _, idx = np.unique(all_signals, return_index=True)
 
             self.all_signals = all_signals[np.sort(idx)].tolist()
-
-        full_spectrum = self.get_experiment_properties('full_spectrum')
-        self.full_spectrum = np.any(full_spectrum)
 
         return None
 
@@ -69,11 +90,14 @@ class ManyDsfFitters:
 
                 del self.experiments[name]
 
-                self.set_unique_signals()
-
             if name in self.available_experiments:
 
                 self.available_experiments.remove(name)
+
+        if len(self.experiments) > 0:
+
+            self.set_unique_signals()
+            self.set_full_spectrum()
 
         return None
 
@@ -124,6 +148,10 @@ class ManyDsfFitters:
 
     def set_colors(self,color_list):
 
+        # Transform to list if needed
+        if not isinstance(color_list,list):
+            color_list = [color_list]
+
         counter = 0
 
         for _, fitter in self.experiments.items():
@@ -138,7 +166,11 @@ class ManyDsfFitters:
 
         return None
 
-    def set_conditions(self,conditions_list,original=False):
+    def set_conditions(self,conditions_list):
+
+        # Transform to list if needed
+        if not isinstance(conditions_list,list):
+            conditions_list = [conditions_list]
 
         counter = 0
 
@@ -156,6 +188,10 @@ class ManyDsfFitters:
 
     def select_conditions(self,boolean_mask):
 
+        # Transform to list if needed
+        if not isinstance(boolean_mask,list):
+            boolean_mask = [boolean_mask]
+
         counter = 0
 
         for _, fitter in self.experiments.items():
@@ -170,9 +206,29 @@ class ManyDsfFitters:
 
         return None
 
-    def get_experiment_properties(self, variable,flatten=False):
+    def create_ratio_signal(self,signal_num,signal_den):
 
-        list = [getattr(self.experiments[name], variable) for name in self.experiments.keys()]
+        for exp in self.full_spectrum_experiments:
+
+            self.experiments[exp].create_ratio_signal(signal_num,signal_den)
+
+        self.set_unique_signals()
+
+        return None
+
+    def get_experiment_properties(self, variable,flatten=False,remove_none=True,full_spectrum_only=False):
+
+        if full_spectrum_only:
+
+            list = [getattr(self.experiments[name], variable) for name in self.full_spectrum_experiments]
+
+        else:
+            list = [getattr(self.experiments[name], variable) for name in self.experiments.keys()]
+
+        # Remove empty lists and NaNs
+        if remove_none:
+
+            list = [x for x in list if x is not None]
 
         if flatten:
 
@@ -258,22 +314,36 @@ class ManyDsfFitters:
 
     def filter_by_relative_error(self,threshold_percentage):
 
-        kwargs = {'threshold_percentage':threshold_percentage}
-        self.apply_to_available_experiments('filter_by_relative_error',**kwargs)
+        bool_mask_all = []
 
-        return None
+        for exp in self.available_experiments:
+
+            bool_mask = self.experiments[exp].filter_by_relative_error(threshold_percentage)
+            bool_mask_all.extend(bool_mask)
+
+        return bool_mask_all
 
     def filter_by_fitting_std_error(self,threshold_std_error):
 
-        kwargs = {'threshold_std_error':threshold_std_error}
-        self.apply_to_available_experiments('filter_by_fitting_std_error',**kwargs)
+        bool_mask_all = []
 
-        return None
+        for exp in self.available_experiments:
+
+            bool_mask = self.experiments[exp].filter_by_fitting_std_error(threshold_std_error)
+            bool_mask_all.extend(bool_mask)
+
+        return bool_mask_all
 
     def filter_by_param_values(self,param_name,low_value,high_value):
 
         kwargs = {'param_name':param_name,'low_value':low_value,'high_value':high_value}
-        self.apply_to_available_experiments('filter_by_param_values',**kwargs)
 
-        return None
+        bool_mask_all = []
+
+        for exp in self.available_experiments:
+
+            bool_mask = self.experiments[exp].filter_by_param_values(**kwargs)
+            bool_mask_all.extend(bool_mask)
+
+        return bool_mask_all
 

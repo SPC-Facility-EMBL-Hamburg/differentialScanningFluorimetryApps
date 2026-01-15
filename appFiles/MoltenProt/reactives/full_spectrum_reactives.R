@@ -92,7 +92,7 @@ full_spectrum_dialog <- function() {
             selectInput(
               "wl_for_ratio_1",
               NULL,
-              choices = rev(dsf$signals),
+              choices = rev(dsf$all_signals),
               selectize = FALSE
             )
           )
@@ -103,10 +103,10 @@ full_spectrum_dialog <- function() {
             selectInput(
               "wl_for_ratio_2",
               NULL,
-              choices = dsf$signals[
-                !grepl('Ratio', dsf$signals) &
-                  !grepl('BCM', dsf$signals) &
-                    !grepl('SVD', dsf$signals)
+              choices = dsf$all_signals[
+                !grepl('Ratio', dsf$all_signals) &
+                  !grepl('BCM', dsf$all_signals) &
+                    !grepl('SVD', dsf$all_signals)
               ],
               selectize = FALSE
             )
@@ -116,7 +116,6 @@ full_spectrum_dialog <- function() {
       ),
 
       footer=tagList(
-        #actionButton('submitConfig', 'Submit'),
         modalButton('Close')
       )
 
@@ -144,7 +143,9 @@ renderSpectralPlots <- function() {
     }
   }
 
-  nConditions   <- length(dsf$conditions)
+  conditions <- dsf$get_experiment_properties('conditions', flatten=TRUE,full_spectrum_only=TRUE)
+
+  nConditions  <- length(conditions)
 
   # Return NULL if no conditions are selected
   if (nConditions == 0) return(NULL)
@@ -162,17 +163,29 @@ renderSpectralPlots <- function() {
 
   reactives$spectra_panel_names <- tabPanelNames
 
-  all_signals <- dsf$signal_data_dictionary
-  all_temps   <- dsf$temp_data_dictionary
+  togs <- list()
 
-  tog <- join_all_signals(
-    all_signals,
-    all_temps,
-    c(dsf$conditions),
-    reactives$include_vector,
-    input$sg_range[1],
-    input$sg_range[2]
-  )
+  for (exp in dsf$full_spectrum_experiments) {
+
+    py_obj <- dsf$experiments[[exp]]
+
+    all_signals <- py_obj$signal_data_dictionary
+    all_temps   <- py_obj$temp_data_dictionary
+
+    tog <- join_all_signals(
+      all_signals,
+      all_temps,
+      c(py_obj$conditions),
+      reactives$include_vector,
+      input$sg_range[1],
+      input$sg_range[2]
+    )
+
+    togs[[length(togs)+1]] <- tog
+
+  }
+
+  tog <- do.call(rbind, togs)
 
   maxPanels     <- length(tabPanelNames)
 
@@ -186,7 +199,8 @@ renderSpectralPlots <- function() {
 
     fig       <- plot_whole_spectra(
         tog2,font_size = input$plot_axis_size,
-        min_wl=input[['wl_range']][1],max_wl=input[['wl_range']][2])
+        min_wl=input[['wl_range']][1],max_wl=input[['wl_range']][2]
+    )
 
     output[[tabPanelName]] <- renderPlot(fig)
 
@@ -209,7 +223,7 @@ observeEvent(input$generateRatioSignal,{
 
   dsf$create_ratio_signal(wl1, wl2)
 
-  updateSelectInput(session, "which",choices  = dsf$signals)
+  updateSelectInput(session, "which",choices  = dsf$all_signals)
 
 })
 
@@ -224,6 +238,6 @@ observeEvent(input$decomposeSpectra,{
 
   })
 
-  updateSelectInput(session, "which",choices  = dsf$signals)
+  updateSelectInput(session, "which",choices  = dsf$all_signals)
 
 })

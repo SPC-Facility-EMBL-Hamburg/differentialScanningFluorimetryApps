@@ -256,13 +256,26 @@ avoid_positions_with_the_same_name_in_df <- function(fluo_m) {
 # 'min_temp'    : integer, to limit the temperature range
 # 'max_temp'    : integer, to limit the temperature range
 
-join_all_signals <- function(all_signals,all_temps,
-                             conditions,include_vector,
-                             min_temp,max_temp) {
-  
-  all_signals[["Ratio 350nm/330nm"]] <- NULL
-  all_temps[["Ratio 350nm/330nm"]]   <- NULL
-  
+join_all_signals <- function(
+  all_signals,all_temps,
+  conditions,include_vector,
+  min_temp,max_temp) {
+
+  # Assign to NULL all signals that contain certain words (these are not real wavelengths)
+  signals_names <- names(all_signals)
+
+  words_to_remove <- c('Fluorescence','Ratio','SVD','DSF_RFU','Scattering','Turbidity')
+
+  for (word in words_to_remove) {
+
+    if (any(grepl(word,signals_names))) {
+        word_indices <- which(grepl(word,signals_names))
+        all_signals[word_indices] <- NULL
+        all_temps[word_indices]   <- NULL
+    }
+
+  }
+
   # Arbitrary steps for downsampling (faster plotting)
   wl_step   <- ifelse(length(all_signals)    > 60,2,1)
   temp_step <- ifelse(length(all_temps[[1]]) > 40,3,2)
@@ -490,4 +503,65 @@ generate_tm_tonset_df <- function(conditions,tms,t_onset) {
   df <- df %>% dplyr::arrange(-distance_cuad)
   return(df)
   
+}
+
+colbind_pad <- function(dfs, fill = NA) {
+  # remove NULLs
+  dfs <- dfs[!vapply(dfs, is.null, logical(1))]
+  if (length(dfs) == 0) return(data.frame())
+
+  # determine max rows
+  nrows <- vapply(dfs, function(x) {
+    if (is.data.frame(x)) nrow(x)
+    else if (is.matrix(x)) nrow(x)
+    else length(x)
+  }, integer(1))
+  n <- max(nrows, na.rm = TRUE)
+
+  pad_rows <- function(df, target, fill) {
+    if (target <= 0) return(df)
+    pad <- as.data.frame(matrix(fill, nrow = target, ncol = ncol(df)), stringsAsFactors = FALSE)
+    colnames(pad) <- colnames(df)
+    rbind(df, pad)
+  }
+
+  dfs_pad <- lapply(dfs, function(x) {
+    if (is.data.frame(x)) {
+      df <- x
+      if (nrow(df) < n) df <- pad_rows(df, n - nrow(df), fill)
+      return(df)
+    }
+
+    if (is.matrix(x)) {
+      df <- as.data.frame(x, stringsAsFactors = FALSE)
+      if (nrow(df) < n) df <- pad_rows(df, n - nrow(df), fill)
+      return(df)
+    }
+
+    if (is.atomic(x)) {
+      # named atomic -> treated as columns (single row), pad to n rows
+      if (!is.null(names(x))) {
+        df <- as.data.frame(t(x), stringsAsFactors = FALSE)
+        if (nrow(df) < n) df <- pad_rows(df, n - nrow(df), fill)
+        return(df)
+      }
+
+      # unnamed atomic -> single column, extend/trim to n
+      vals <- rep(fill, n)
+      l <- length(x)
+      if (l > 0) vals[seq_len(min(l, n))] <- x[seq_len(min(l, n))]
+      return(data.frame(V = vals, stringsAsFactors = FALSE))
+    }
+
+    # fallback
+    df <- as.data.frame(x, stringsAsFactors = FALSE)
+    if (nrow(df) < n) df <- pad_rows(df, n - nrow(df), fill)
+    df
+  })
+
+  names(dfs_pad) <- NULL
+  out <- do.call(cbind, dfs_pad)
+  colnames(out) <- make.unique(colnames(out))
+
+  return(out)
 }

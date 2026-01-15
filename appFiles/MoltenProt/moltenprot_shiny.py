@@ -40,7 +40,8 @@ from helpers import (
     get_empirical_two_state_score,
     get_empirical_three_state_score,
     get_irrev_two_state_pkd,
-    generate_2D_signal_matrix
+    generate_2D_signal_matrix,
+    find_closest_signal
 )
 
 from models import(
@@ -135,6 +136,9 @@ class DsfFitter:
 
         # Minimum temperature in the selected temperature range
         self.min_temp = None
+
+        # Wavelengths
+        self.wavelengths = None
 
         # First derivative of self.fluo
         self.derivative = None
@@ -1307,6 +1311,8 @@ class DsfFitter:
             signal_den (str): Denominator signal key in self.signal_data_dictionary.
 
         """
+        signal_num = find_closest_signal(signal_num,self.signals)
+        signal_den = find_closest_signal(signal_den,self.signals)
 
         ratio_signal_name = 'Ratio ' + signal_num + ' / ' + signal_den
 
@@ -2357,9 +2363,7 @@ class DsfFitter:
 
             boolean_mask.append(condition)
 
-        self.boolean_mask_relative_error = boolean_mask
-
-        return None
+        return boolean_mask
 
     def filter_by_fitting_std_error(self,threshold_std_error):
 
@@ -2369,9 +2373,8 @@ class DsfFitter:
         Args:
             threshold_std_error (float): Maximum allowed standard error of the fit.
 
-        Notes:
-
-            creates self.boolean_mask_fitting_std_error (list):
+        Returns:
+            boolean_mask (list):
             List of booleans indicating which conditions meet the error criteria.
 
         """
@@ -2382,9 +2385,7 @@ class DsfFitter:
 
             boolean_mask.append(std_error <= threshold_std_error)
 
-        self.boolean_mask_fitting_std_error = boolean_mask
-
-        return None
+        return boolean_mask
 
     def filter_by_param_values(self,param_name,low_value,high_value):
 
@@ -2396,10 +2397,9 @@ class DsfFitter:
             low_value (float): Minimum acceptable value for the parameter.
             high_value (float): Maximum acceptable value for the parameter.
 
-        Notes:
-
-            Creates self.boolean_mask_param_values (list):
-            List of booleans indicating which conditions meet the parameter criteria.
+        Returns:
+            boolean_mask (list):
+            List of booleans indicating which conditions meet the error criteria.
 
         """
 
@@ -2418,9 +2418,7 @@ class DsfFitter:
 
             boolean_mask.append(condition)
 
-        self.boolean_mask_param_values = boolean_mask
-
-        return None
+        return boolean_mask
 
 test = False
 

@@ -125,7 +125,7 @@ def test_set_baseline_types():
 
 def test_estimate_baselines_parameters():
 
-    fitters.delete_experiments(['0','1','2','4','5','6','7'])
+    fitters.delete_experiments(['0','1','2','4','5','6'])
 
     fitters.estimate_baselines_parameters()
 
@@ -133,7 +133,7 @@ def test_estimate_baselines_parameters():
 
 def test_equilibrium_two_state():
 
-    boolean_mask = [True] * 4 + [False] * 44
+    boolean_mask = [True] * 4 + [False] * 44 + [True] * 3
     fitters.select_conditions(boolean_mask)
     fitters.estimate_baselines_parameters()
     fitters.equilibrium_two_state(delta_cp=0)
@@ -148,26 +148,38 @@ def test_empirical_two_state():
 
 def test_filter_by_relative_error():
 
-    fitters.filter_by_relative_error(100)
+    mask = fitters.filter_by_relative_error(100)
 
-    print(fitters.experiments['3'].errors_percentage_all)
-
-    mask = fitters.experiments['3'].boolean_mask_relative_error
-
-    assert mask == [False,True,True,True]
+    assert mask == [False] + [True] * 3
 
 def test_filter_by_fitting_std_error():
 
-    fitters.filter_by_fitting_std_error(10)
-
-    mask = fitters.experiments['3'].boolean_mask_fitting_std_error
+    mask = fitters.filter_by_fitting_std_error(10)
 
     assert mask == [True] * 4
 
 def test_filter_by_param_values():
 
-    fitters.filter_by_param_values('Tm',50+273.15,75+273.15)
-
-    mask = fitters.experiments['3'].boolean_mask_param_values
+    mask = fitters.filter_by_param_values('Tm',50+273.15,75+273.15)
 
     assert mask == [True] * 4
+
+def test_get_params():
+
+    params_all = fitters.get_experiment_properties('params_all',flatten=True)
+
+    assert len(params_all) == 4 # Four conditions were fitted
+
+    params_name = fitters.get_experiment_properties('params_name',flatten=True)
+
+    assert len(params_name) == 8
+
+def test_remove_all_experiments():
+
+    exps = list(fitters.experiments.keys())
+
+    for exp in exps:
+
+        fitters.delete_experiments(exp)
+
+    assert len(fitters.experiments) == 0

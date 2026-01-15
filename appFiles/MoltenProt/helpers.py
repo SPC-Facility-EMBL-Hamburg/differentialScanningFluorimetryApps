@@ -1,5 +1,6 @@
-import numpy  as np
 import codecs
+import re
+import numpy  as np
 import pandas as pd
 from openpyxl import load_workbook
 from xlrd     import open_workbook
@@ -928,4 +929,38 @@ def generate_2D_signal_matrix(condition_id,signal_data_dictionary,selected_rows)
 
     return signals_2D
 
+def string_to_float(s):
 
+    """
+    Args:
+        s (str): String to convert.
+    Returns:
+        float: Converted float value.
+    """
+
+    cleaned = re.sub(r'[^0-9.\-]', '', s)
+    try:
+        cleaned = float(cleaned)
+    except ValueError:
+        cleaned = 0.0
+    return cleaned
+
+def find_closest_signal(selected,options):
+
+    """
+
+    Args:
+        selected (str): Selected condition string.
+        options (list): List of available signals
+
+    Returns:
+
+    """
+
+    # Remove all non-numeric characters from selected and from the options
+    options_float = [string_to_float(s) for s in options]
+    selected_float = string_to_float(selected)
+
+    idx = np.argmin(np.abs(np.array(options_float)-selected_float))
+
+    return options[idx]

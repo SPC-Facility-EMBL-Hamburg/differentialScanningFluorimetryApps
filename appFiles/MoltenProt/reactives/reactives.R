@@ -96,8 +96,8 @@ observeEvent(input$dsf_files,{
         reactives$full_spectra <- dsf$full_spectrum
 
         if (dsf$full_spectrum) {
-
-            reactives$include_vector <- rep(T,length(dsf$conditions))
+            conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE,full_spectrum_only=TRUE)
+            reactives$include_vector <- rep(T,length(conditions))
             reactives$min_wl <- dsf$min_wavelength
             reactives$max_wl <- dsf$max_wavelength
 
@@ -182,7 +182,7 @@ observeEvent(
     include_vector <- include_vector & (series_vector == input$selected_cond_series)
   }
 
-  reactives$include_vector <- include_vector
+  reactives$include_vector <- c(include_vector)
 
   # ... use only the conditions selected by the user ...
   dsf$set_conditions(conditions_vector)
@@ -535,9 +535,9 @@ observeEvent(input$model_selected,{
   req(input$table1)
   
   if (grepl("Three",input$model_selected)) {
-    
-    temps   <- dsf$temps - 273.15
-    tempMax <- round(max(temps)) 
+
+    temps <- dsf$get_experiment_properties('temps',flatten=TRUE) - 273.15
+    tempMax <- round(max(temps))
     tempMin <- round(min(temps))
     tempMiddle <- round( (max(temps) + min(temps)) * 0.5 )
     
@@ -555,7 +555,8 @@ output$data_was_fitted <- reactive({
   req(input$table1)
   # re evaluate expression if the user fitted data again
   req(input$btn_cal)
-  return(length(dsf$fitted_conditions)>0)
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+  return(length(fitted_conditions)>0)
 
 })
 
@@ -565,11 +566,20 @@ outputOptions(output, "three_state_model_selected", suspendWhenHidden = FALSE)
 output$params_table <- renderTable({
   req(fluo_fit_data())
 
+  params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
+  params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+  params_name <- unique(params_name)
+
+  # We need a list of vectors, and we had a matrix before
+  params_all <- split(params_all, seq(nrow(params_all)))
+
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
   get_sorted_params_table(
-    dsf$params_all,
-    dsf$fitted_conditions,
+    params_all,
+    fitted_conditions,
     global_chunck_n,
-    dsf$params_name,
+    params_name,
     input$sort_table_parameter
   )
 
@@ -577,24 +587,48 @@ output$params_table <- renderTable({
 
 output$params_table_errors <- renderTable({
   req(fluo_fit_data())
-  return(get_sorted_params_table_errors(dsf$errors_percentage_all,
-                                        dsf$fitted_conditions,
-                                        dsf$params_name,input$sort_table_parameter))
+
+  errors_percentage_all <- dsf$get_experiment_properties('errors_percentage_all',flatten=TRUE)
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+  params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+  params_name <- unique(params_name)
+
+  # We need a list of vectors, and we had a matrix before
+  errors_percentage_all <- split(errors_percentage_all, seq(nrow(errors_percentage_all)))
+
+  return(get_sorted_params_table_errors(
+    errors_percentage_all,
+    fitted_conditions,
+    params_name,
+    input$sort_table_parameter)
+  )
+
 })
 
 observe({
   
   req(fluo_fit_data())
-  updateSelectInput(session, "select_fitting_plot",
-                    choices  = get_choices_fluo_fits(length(dsf$fitted_conditions),global_chunck_n))
+
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
+  updateSelectInput(
+    session, "select_fitting_plot",
+    choices  = get_choices_fluo_fits(length(fitted_conditions),global_chunck_n)
+  )
   
 })
 
 observe({
   
   req(fluo_fit_data())
-  updateSelectInput(session, "sort_table_parameter",
-                    choices  = dsf$params_name)
+
+  params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+  params_name <- unique(params_name)
+
+  updateSelectInput(
+    session, "sort_table_parameter",
+    choices  = params_name
+  )
   
 })
 
@@ -624,13 +658,16 @@ output$fluo_residuals_plot <- renderPlot({
   
   real_data  <- fluo_fit_data()$fluo_fit_real
   model_data <- fluo_fit_data()$fluo_fit_pred
-  
+
+  std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
   p <- plot_fluorescence_residuals(
     real_data,
     model_data,
     selected,
-    dsf$std_error_estimate_all,
-    dsf$fitted_conditions
+    std_error_estimate_all,
+    fitted_conditions
   )
 
   return(p)
@@ -642,10 +679,13 @@ output$fluo_residuals_plot <- renderPlot({
 output$fitted_conditions_table <- renderTable({
   req(fluo_fit_data())
 
+  conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
   return(
     get_fitted_conditions_table(
-    dsf$conditions,
-    dsf$fitted_conditions)
+    conditions,
+    fitted_conditions)
     )
 
 })
@@ -655,13 +695,15 @@ filter_conditions <- reactive({
   
   req(fluo_fit_data())
 
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
   if (input$sd_factor_bool) {
 
     selected_indexes_1 <- dsf$filter_by_relative_error(input$rel_error_threshold)
 
   } else {
 
-      selected_indexes_1 <- rep(TRUE,length(dsf$fitted_conditions))
+      selected_indexes_1 <- rep(TRUE,length(fitted_conditions))
 
   }
 
@@ -713,8 +755,6 @@ filter_conditions <- reactive({
 
   }
 
-
-
   return(selected_indexes)
 
 })
@@ -723,7 +763,9 @@ get_score_table <- reactive({
   
   # Check we have fitted the fluorescence data
   req(fluo_fit_data())
-  
+
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
   selected_indexes <- filter_conditions()
 
   if (!(any(selected_indexes))){return(NULL)}
@@ -731,12 +773,17 @@ get_score_table <- reactive({
   score_table <- NULL
   if ((dsf$model_name == "EquilibriumTwoState")) {
 
-    params_all  <- map2(dsf$dG_std,dsf$dCp_component,function(x,y) c(x,y))
+    dG_std <- dsf$get_experiment_properties('dG_std',flatten=TRUE)
+    dCp_component <- dsf$get_experiment_properties('dCp_component',flatten=TRUE)
+
+    params_all  <- map2(dG_std,dCp_component,function(x,y) c(x,y))
     params_name <- c("dg_std","cp_comp")
     
-    score_table <- get_all_params_df(params_all[selected_indexes],
-                                     dsf$fitted_conditions[selected_indexes],
-                                     global_chunck_n,params_name)
+    score_table <- get_all_params_df(
+      params_all[selected_indexes],
+      fitted_conditions[selected_indexes],
+      global_chunck_n,params_name
+    )
     
     score_table$dg_std <- as.numeric(score_table$dg_std) 
     score_table        <- score_table %>% dplyr::arrange(dg_std)
@@ -746,10 +793,13 @@ get_score_table <- reactive({
   if ((dsf$model_name == "EquilibriumThreeState")) {
     
     params_name <- c("score")
-    
-    score_table <- get_all_params_df(dsf$dG_comb_std[selected_indexes],
-                                     dsf$fitted_conditions[selected_indexes],
-                                     global_chunck_n,params_name)
+    dG_comb_std <- dsf$get_experiment_properties('dG_comb_std',flatten=TRUE)
+
+    score_table <- get_all_params_df(
+      dG_comb_std[selected_indexes],
+      fitted_conditions[selected_indexes],
+      global_chunck_n,params_name
+    )
     
     score_table$score    <-  as.numeric(score_table$score) 
     score_table          <-  score_table %>% dplyr::arrange(score)
@@ -760,10 +810,14 @@ get_score_table <- reactive({
   if ((dsf$model_name == "EmpiricalTwoState")) {
     
     params_name <- c("score")
-    
-    score_table <- get_all_params_df(dsf$score[selected_indexes],
-                                     dsf$fitted_conditions[selected_indexes],
-                                     global_chunck_n,params_name)
+
+    score <- dsf$get_experiment_properties('score',flatten=TRUE)
+
+    score_table <- get_all_params_df(
+      score[selected_indexes],
+      fitted_conditions[selected_indexes],
+      global_chunck_n,params_name
+    )
     
     score_table$score    <-  as.numeric(score_table$score) 
     score_table          <-  score_table %>% dplyr::arrange(-score)
@@ -774,10 +828,12 @@ get_score_table <- reactive({
   if ((dsf$model_name == "EmpiricalThreeState")) {
     
     params_name <- c("score")
-    
-    score_table <- get_all_params_df(dsf$T_eucl_comb[selected_indexes],
-                                     dsf$fitted_conditions[selected_indexes],
-                                     global_chunck_n,params_name)
+    T_eucl_comb <- dsf$get_experiment_properties('T_eucl_comb',flatten=TRUE)
+
+    score_table <- get_all_params_df(
+      T_eucl_comb[selected_indexes],
+      fitted_conditions[selected_indexes],
+      global_chunck_n,params_name)
     
     score_table$score    <-  as.numeric(score_table$score) 
     score_table          <-  score_table %>% dplyr::arrange(-score)
@@ -788,10 +844,13 @@ get_score_table <- reactive({
   if ((dsf$model_name == "IrreversibleTwoState")) {
     
     params_name <- c("score")
-    
-    score_table <- get_all_params_df(dsf$pkd[selected_indexes],
-                                     dsf$fitted_conditions[selected_indexes],
-                                     global_chunck_n,params_name)
+    pkd <- dsf$get_experiment_properties('pkd',flatten=TRUE)
+
+    score_table <- get_all_params_df(
+      pkd[selected_indexes],
+      fitted_conditions[selected_indexes],
+      global_chunck_n,params_name
+    )
     
     score_table$score    <-  as.numeric(score_table$score) 
     score_table          <-  score_table %>% dplyr::arrange(-score)
@@ -829,82 +888,110 @@ get_results_plot <- reactive({
   
   if (!(any(selected_indexes))){return(NULL)}
 
+  params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+  params_name <- unique(params_name)
+
+  params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
+  # We need a list of vectors, and we had a matrix before
+  params_all <- split(params_all, seq(nrow(params_all)))
+
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+
   # Get the value of the parameter Tm
   if (input$select_plot_type %in% c(
     "Unfolded fraction",
     "The 25 highest Tms",
     "The 25 highest Tms versus Tonset")) {
     
-    tm_position <- which(dsf$params_name == "Tm")  
-    tms <- sapply(dsf$params_all, function(x) x[tm_position])
+    tm_position <- which(params_name == "Tm")
+    tms <- sapply(params_all, function(x) x[tm_position])
     
   }
   
   #Get the value of the parameter T_onset 
   if (input$select_plot_type %in% c("Unfolded fraction","The 25 highest Tms versus Tonset")) {
     
-    if (input$model_selected == "EquilibriumTwoState") {t_onset <- dsf$T_onset}
+    if (input$model_selected == "EquilibriumTwoState") {
+      t_onset <- dsf$get_experiment_properties('T_onset',flatten=TRUE)
+    }
     if (input$model_selected == "EmpiricalTwoState")   {
-      t_onset_position <- which(dsf$params_name == "T_onset") 
-      t_onset          <- sapply(dsf$params_all, function(x) x[t_onset_position])
+      t_onset_position <- which(params_name == "T_onset")
+      t_onset          <- sapply(params_all, function(x) x[t_onset_position])
     }
   }
   
   if (input$select_plot_type == "Unfolded fraction") {
     
-    dh_position <- which(dsf$params_name == "DH")
-    dhs <- sapply(dsf$params_all, function(x) x[dh_position])
+    dh_position <- which(params_name == "DH")
+    dhs <- sapply(params_all, function(x) x[dh_position])
     
     if (input$model_selected == "EquilibriumTwoState") {
-      fig <- generate_fractions_plot(dhs[selected_indexes],
-                                     tms[selected_indexes],
-                                     dsf$fitted_conditions[selected_indexes],
-                                     t_onset[selected_indexes], # useful only to set colors
-                                     input$plot_width_results, input$plot_height_results, 
-                                     input$plot_type_results,input$plot_font_size_results,
-                                     input$plot_axis_size_results,input$fractions_plot_style) 
-                                                         #set to TRUE  to use a different color for each position  
-                                                         #set to FALSE to use a different color for each condition                                      
-    } 
+
+      fig <- generate_fractions_plot(
+        dhs[selected_indexes],
+        tms[selected_indexes],
+        fitted_conditions[selected_indexes],
+        t_onset[selected_indexes], # useful only to set colors
+        input$plot_width_results, input$plot_height_results,
+        input$plot_type_results,input$plot_font_size_results,
+        input$plot_axis_size_results,input$fractions_plot_style
+      )
+    }
     
     return(fig)
   }
   
   if (input$select_plot_type == "The 25 highest Tms") {
     
-    fig <- generate_tm_plot(tms[selected_indexes],dsf$fitted_conditions[selected_indexes],
-                            input$plot_width_results, input$plot_height_results, 
-                            input$plot_type_results,input$plot_axis_size_results)
+    fig <- generate_tm_plot(
+      tms[selected_indexes],
+      fitted_conditions[selected_indexes],
+      input$plot_width_results, input$plot_height_results,
+      input$plot_type_results,input$plot_axis_size_results
+    )
+
     return(fig)
   }
   
   if (input$select_plot_type == "The 25 highest Tms versus Tonset") {
     
-    fig <- generate_tm_tonset_plot(tms[selected_indexes],
-                                   dsf$fitted_conditions[selected_indexes],
-                                   t_onset[selected_indexes],
-                                   input$plot_width_results, input$plot_height_results, 
-                                   input$plot_type_results,input$plot_font_size_results,input$plot_axis_size_results)
+    fig <- generate_tm_tonset_plot(
+      tms[selected_indexes],
+      fitted_conditions[selected_indexes],
+      t_onset[selected_indexes],
+      input$plot_width_results, input$plot_height_results,
+      input$plot_type_results,input$plot_font_size_results,input$plot_axis_size_results
+    )
+
     return(fig)
   }
   
   if (input$select_plot_type == "The 25 highest combinations of T1 and T2") {
     
-    t1_position <- which(dsf$params_name == "T1") 
-    t1s <- sapply(dsf$params_all, function(x) x[t1_position])
+    t1_position <- which(params_name == "T1")
+    t1s <- sapply(params_all, function(x) x[t1_position])
     
-    t2_position <- which(dsf$params_name == "T2") 
-    t2s <- sapply(dsf$params_all, function(x) x[t2_position])
+    t2_position <- which(params_name == "T2")
+    t2s <- sapply(params_all, function(x) x[t2_position])
     
-    if (input$model_selected == "EquilibriumThreeState") {score <- dsf$dG_comb_std}
-    if (input$model_selected == "EmpiricalThreeState")   {score <- dsf$T_eucl_comb}
+    if (input$model_selected == "EquilibriumThreeState") {
+      dG_comb_std <- dsf$get_experiment_properties('dG_comb_std',flatten=TRUE)
+      score <- dG_comb_std
+    }
+    if (input$model_selected == "EmpiricalThreeState")   {
+      T_eucl_comb <- dsf$get_experiment_properties('T_eucl_comb',flatten=TRUE)
+      score <- T_eucl_comb
+    }
     
-    fig <- generate_2t_plot(t1s[selected_indexes],
-                            t2s[selected_indexes],
-                            dsf$fitted_conditions[selected_indexes],
-                            score[selected_indexes],
-                            input$plot_width_results, input$plot_height_results, 
-                            input$plot_type_results,input$plot_font_size_results,input$plot_axis_size_results)
+    fig <- generate_2t_plot(
+      t1s[selected_indexes],
+      t2s[selected_indexes],
+      fitted_conditions[selected_indexes],
+      score[selected_indexes],
+      input$plot_width_results, input$plot_height_results,
+      input$plot_type_results,input$plot_font_size_results,input$plot_axis_size_results
+    )
+
     return(fig)
     
   }
@@ -912,9 +999,11 @@ get_results_plot <- reactive({
   if (input$select_plot_type == "Score versus condition") {
     
     req(get_score_table())
-    return(generate_score_plot(get_score_table(),
-                               input$plot_width_results,input$plot_height_results, 
-                               input$plot_type_results,input$plot_axis_size_results))
+    return(generate_score_plot(
+      get_score_table(),
+      input$plot_width_results,input$plot_height_results,
+      input$plot_type_results,input$plot_axis_size_results)
+    )
     
   }
   
