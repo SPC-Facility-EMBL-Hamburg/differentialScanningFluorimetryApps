@@ -143,7 +143,7 @@ renderSpectralPlots <- function() {
     }
   }
 
-  conditions <- dsf$get_experiment_properties('conditions', flatten=TRUE,full_spectrum_only=TRUE)
+  conditions <- dsf$get_experiment_properties('conditions', flatten=TRUE,mode="full_spectrum")
 
   nConditions  <- length(conditions)
 

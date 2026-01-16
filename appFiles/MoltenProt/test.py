@@ -24,29 +24,17 @@ all_files = [
 
 fitters = ManyDsfFitters()
 
-
-for i,file in enumerate(all_files):
-
-    fitters.add_experiment(file,str(i))
-
-    fitter_i = fitters.experiments[str(i)]
-
-    assert fitter_i.conditions is not None
-
-    assert len(fitter_i.conditions) > 0
+fitters.add_experiment(uncle_file,"test1")
 
 
-fitters.set_signal("350nm")
+fitters.set_signal(fitters.all_signals[0])
+fitters.filter_by_temperature(26,39)
 
+fitters.set_colors(["red"])
+fitters.select_conditions([True])
+fitters.estimate_fluo_derivates(3)
+fitters.set_baseline_types(1,1)
+fitters.estimate_baselines_parameters()
+fitters.equilibrium_two_state(0)
 
-fitters.filter_by_temperature(30,84)
-
-
-all_conditions = fitters.get_experiment_properties('conditions',mode="all",flatten=True)
-
-n_conditions = len(all_conditions)
-
-colors = ['#FF0000'] * n_conditions
-print(colors)
-fitters.set_colors(colors)
-
+print(fitters.get_experiment_properties('fitted_conditions',flatten=True))

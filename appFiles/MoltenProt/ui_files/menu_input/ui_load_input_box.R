@@ -79,7 +79,7 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
       
       column(5, p(HTML("<b>SG window size</b>"),
                   span(shiny::icon("info-circle"), id = "info_uu1-6"),
-                  numericInput('SG_window2',NULL, 10,min = 0, max = 15),
+                  numericInput('SG_window2',NULL, 7,min = 4, max = 10),
                   tippy::tippy_this(elementId = "info_uu1-6",
                     tooltip = "The Savitzky-Golay window size (in °C) is used to estimate the first and second derivative",placement = "right"))),
       

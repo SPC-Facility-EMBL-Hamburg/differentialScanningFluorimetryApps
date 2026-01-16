@@ -63,6 +63,7 @@ renderConditionsTable <- function(tables) {
 observeEvent(input$dsf_files,{
 
     reactives$data_loaded <- FALSE
+    reactives$data_was_fitted <- FALSE
 
     resetConditionsTable()
 
@@ -133,8 +134,6 @@ observeEvent(input$dsf_files,{
         min_temp <- round(min(temps) - 273.15) # To degree celsius
         max_temp <- round(max(temps) - 273.15) # To degree celsius
 
-        dsf$estimate_fluo_derivates(input$SG_window2)
-
         updateSliderInput(
           session,"sg_range",
           NULL,
@@ -142,7 +141,9 @@ observeEvent(input$dsf_files,{
           max = max_temp,
           value = c(min_temp+1,max_temp-1)
         )
-      
+
+        dsf$estimate_fluo_derivates(input$SG_window2)
+
         Sys.sleep(0.5)
         reactives$data_loaded <- TRUE
 
@@ -379,7 +380,6 @@ output$signal_der1 <- renderPlotly({
 # Render 2nd derivative plot
 output$signal_der2 <- renderPlotly({
   
-  #req(fluo_signal_loaded())
   req(input$table1)
   req(reactives$data_loaded)
 
@@ -422,8 +422,6 @@ output$tm_derivative <- renderPlotly({
     return(NULL)
   }
 
-  reactives$data_was_fitted <- FALSE
-
   conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
   tms_from_deriv <- dsf$get_experiment_properties('tms_from_deriv',flatten=TRUE)
 
@@ -444,6 +442,8 @@ output$tm_derivative <- renderPlotly({
 # Fit when the user presses the button
 fluo_fit_data <- eventReactive(input$btn_cal, {
 
+  print("here!")
+
   model_selected <- input$model_selected
 
   orders <- list(
@@ -457,7 +457,6 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
 
   dsf$set_baseline_types(poly_order_native,poly_order_unfolded)
 
-  #req(fluo_signal_loaded())
   req(input$table1)
 
   all_fluo <- dsf$get_experiment_properties('fluo',flatten=TRUE)
@@ -467,7 +466,9 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
 
   # check we have data to fit
   if (have_data)   {
-    
+
+    reactives$data_was_fitted <- FALSE
+
     dsf$estimate_baselines_parameters(input$temp_range_baseline_estimation)
 
     reactives$model_is_two_state <- grepl('TwoState',input$model_selected)
@@ -507,11 +508,12 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
 
     })
 
+
     fluo_m <- make_list_df4plot(dsf,global_chunck_n,mode='experimental')
 
-    fluo_predictions_all <- dsf$get_experiment_properties('fluo_predictions_all',flatten=TRUE)
+    fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
-    if (length(fluo_predictions_all) == 0 ) return(NULL)
+    if (length(fitted_conditions) == 0 ) return(NULL)
 
     reactives$data_was_fitted <- TRUE
 
@@ -566,7 +568,8 @@ observeEvent(input$model_selected,{
 outputOptions(output, "three_state_model_selected", suspendWhenHidden = FALSE)
 
 output$params_table <- renderTable({
-  req(fluo_fit_data())
+
+  req(reactives$data_was_fitted)
 
   params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
   params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
@@ -585,8 +588,8 @@ output$params_table <- renderTable({
 })
 
 output$params_table_errors <- renderTable({
-  req(fluo_fit_data())
 
+  req(reactives$data_was_fitted)
   errors_percentage_all <- dsf$get_experiment_properties('errors_percentage_all',flatten=TRUE)
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
   params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
@@ -603,8 +606,7 @@ output$params_table_errors <- renderTable({
 
 observe({
   
-  req(fluo_fit_data())
-
+  req(reactives$data_was_fitted)
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
   updateSelectInput(
@@ -616,7 +618,7 @@ observe({
 
 observe({
   
-  req(fluo_fit_data())
+  req(reactives$data_was_fitted)
 
   params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
   params_name <- unique(params_name)
@@ -631,7 +633,7 @@ observe({
 # Plot the fluorescence fits
 output$fluo_fit_plot <- renderPlot({
   
-  req(fluo_fit_data())
+  req(reactives$data_was_fitted)
   req(input$select_fitting_plot)
   
   selected <- get_selected_from_choice_label(input$select_fitting_plot,global_chunck_n)
@@ -647,7 +649,7 @@ output$fluo_fit_plot <- renderPlot({
 # Plot the fluorescence fits standarized residuals
 output$fluo_residuals_plot <- renderPlot({
   
-  req(fluo_fit_data())
+  req(reactives$data_was_fitted)
   req(input$select_fitting_plot)
   
   selected <- get_selected_from_choice_label(input$select_fitting_plot,global_chunck_n)
@@ -673,7 +675,8 @@ output$fluo_residuals_plot <- renderPlot({
 # End of Plot the fluorescence fits
 
 output$fitted_conditions_table <- renderTable({
-  req(fluo_fit_data())
+
+  req(reactives$data_was_fitted)
 
   conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
@@ -689,8 +692,7 @@ output$fitted_conditions_table <- renderTable({
 
 filter_conditions <- reactive({
   
-  req(fluo_fit_data())
-
+  req(reactives$data_was_fitted)
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
   if (input$sd_factor_bool) {
@@ -758,7 +760,7 @@ filter_conditions <- reactive({
 get_score_table <- reactive({
   
   # Check we have fitted the fluorescence data
-  req(fluo_fit_data())
+  req(reactives$data_was_fitted)
 
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
@@ -868,7 +870,7 @@ output$score_table <- renderTable({
 
 observe({
   
-  req(fluo_fit_data())
+  req(reactives$data_was_fitted)
   updateSelectInput(
     session,
     "select_plot_type",
@@ -1005,7 +1007,7 @@ get_results_plot <- reactive({
 
 output$results_plot <- renderPlotly({
   
-  req(fluo_fit_data())
+  req(reactives$data_was_fitted)
   req(input$select_plot_type)
 
   plot <- get_results_plot()

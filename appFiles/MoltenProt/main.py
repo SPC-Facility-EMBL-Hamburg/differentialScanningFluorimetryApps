@@ -6,7 +6,7 @@ import os
 import numpy as np
 
 from moltenprot_shiny import DsfFitter
-from helpers import to_list
+from helpers import to_list, temperature_to_kelvin
 
 class ManyDsfFitters:
 
@@ -138,6 +138,9 @@ class ManyDsfFitters:
 
     def filter_by_temperature(self,min_temp,max_temp):
 
+        min_temp = temperature_to_kelvin(min_temp)
+        max_temp = temperature_to_kelvin(max_temp)
+
         kwargs = {'min_temp':min_temp,'max_temp':max_temp}
         self.apply_to_available_experiments('filter_by_temperature',**kwargs)
 
@@ -258,7 +261,7 @@ class ManyDsfFitters:
                 attributes.append(attribute)
 
 
-        if flatten:
+        if flatten and len(attributes) > 0:
 
             is_1D_array = not is_list and isinstance(attributes[0], np.ndarray) and attributes[0].ndim == 1
             is_float  = isinstance(attributes[0],float)
@@ -282,7 +285,7 @@ class ManyDsfFitters:
 
         return None
 
-    def estimate_fluo_derivates(self,temp_window_length=8):
+    def estimate_fluo_derivates(self,temp_window_length=7):
 
         kwargs = {'temp_window_length':temp_window_length}
         self.apply_to_available_experiments('estimate_fluo_derivates',**kwargs)

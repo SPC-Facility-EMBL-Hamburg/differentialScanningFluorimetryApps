@@ -1353,6 +1353,10 @@ class DsfFitter:
 
         self.set_signal_type(which)
 
+        # Reset other values
+        self.derivative = None
+        self.derivative2 = None
+
         return None
 
     def set_min_max_temp(self):
@@ -1866,6 +1870,7 @@ class DsfFitter:
 
         #  fitted_conditions_indexes is a list of integers: indexes of the conditions that could be 'successfully' fitted
         self.fitted_conditions_indexes  = []
+        self.fitted_conditions          = [] # names of the fitted conditions
         
         self.params_all                 = [] # values of the fitted parameters
         self.errors_abs_all             = [] # std error of the fitted parameters

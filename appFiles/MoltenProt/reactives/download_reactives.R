@@ -236,7 +236,7 @@ output$download_unfolded_fraction_plot <- downloadHandler(filename = function() 
 
 # The downloadHandler function has an intrinsic timeout limit. We need to generate first the report
 observeEvent(input$downloadReport,{
-  req(fluo_fit_data())
+  req(reactives$data_was_fitted)
   reactives$report_was_created             <- FALSE
 
   withBusyIndicatorServer("downloadReport",{ 
