@@ -103,6 +103,10 @@ get_median_filter <- function(median_value) {
 
 ## Splits a vector into a list of n elements 
 split_vec <- function(vector,chunck_n) {
+
+  vector <- as.vector(vector)
+  vector <- na.omit(vector)
+
   sels    <- list()
   chuncks <- ceiling( length(vector) /chunck_n )
   

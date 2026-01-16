@@ -116,6 +116,8 @@ class ManyDsfFitters:
             else:
 
                 fitter.fluo  = None
+                fitter.derivate = None
+                fitter.derivative2 = None
                 fitter.temps = None
 
         return None
@@ -194,7 +196,7 @@ class ManyDsfFitters:
 
         counter = 0
 
-        for _, fitter in self.experiments.items():
+        for name, fitter in self.experiments.items():
 
             conditions_i_n = len(fitter.conditions_original)
 
@@ -202,7 +204,10 @@ class ManyDsfFitters:
 
             counter += conditions_i_n
 
-            fitter.select_conditions(boolean_mask_i)
+            # Select conditions only for available experiments
+            if name in self.available_experiments:
+
+                fitter.select_conditions(boolean_mask_i)
 
         return None
 
@@ -218,23 +223,32 @@ class ManyDsfFitters:
 
     def get_experiment_properties(self, variable,flatten=False,remove_none=True,full_spectrum_only=False):
 
-        if full_spectrum_only:
+        attributes = []
 
-            list = [getattr(self.experiments[name], variable) for name in self.full_spectrum_experiments]
+        for _, fitter in self.experiments.items():
 
-        else:
-            list = [getattr(self.experiments[name], variable) for name in self.experiments.keys()]
+            if full_spectrum_only and not fitter.full_spectrum:
 
-        # Remove empty lists and NaNs
-        if remove_none:
+                continue
 
-            list = [x for x in list if x is not None]
+            attribute = getattr(fitter, variable)
 
-        if flatten:
+            if remove_none and attribute is None:
 
-            list = np.concatenate(list)
+                continue
 
-        return list
+            # Verify if it is a list or 1D array
+            is_list = isinstance(attribute, list) or (isinstance(attribute, np.ndarray) and attribute.ndim == 1)
+
+            if flatten and is_list:
+
+                attributes.extend(attribute)
+            
+            else:
+
+                attributes.append(attribute)
+
+        return attributes
 
     def median_filter(self,n_degree_window=8):
 

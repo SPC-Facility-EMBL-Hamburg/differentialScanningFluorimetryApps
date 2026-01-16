@@ -11,7 +11,8 @@ reactives <- reactiveValues(
   model_is_two_state             = NULL,
   model_name                     = NULL,
   min_wl                         = 0,
-  max_wl                         = 800
+  max_wl                         = 800,
+  data_was_fitted                = FALSE
   )
 
 output$data_loaded             <- reactive({
@@ -23,6 +24,9 @@ output$report_was_created             <- reactive({
 output$full_spectra             <- reactive({
   return(reactives$full_spectra)})
 
+output$data_was_fitted  <- reactive({
+  return(reactives$data_was_fitted)})
+
 output$model_is_two_state  <- reactive( { return(reactives$model_is_two_state) } )
 
 output$model_name  <- reactive( { return(reactives$model_name) } )
@@ -32,6 +36,7 @@ outputOptions(output, "report_was_created", suspendWhenHidden = FALSE)
 outputOptions(output, "full_spectra"      , suspendWhenHidden = FALSE)
 outputOptions(output, "model_is_two_state", suspendWhenHidden = FALSE)
 outputOptions(output, "model_name", suspendWhenHidden = FALSE)
+outputOptions(output, "data_was_fitted", suspendWhenHidden = FALSE)
 
 resetConditionsTable <- function() {
 
@@ -350,7 +355,7 @@ output$signal_der1 <- renderPlotly({
   }
 
   fluo_m <- py_dsf_to_df(dsf,mode = 'derivative')
-  colors <- dsf$get_experiment_properties('all_colors',flatten=TRUE)
+  colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
 
   if (!(is.null(fluo_m))) {
     p <- plot_fluo_signal(fluo_m,colors,"First derivative",
@@ -384,7 +389,7 @@ output$signal_der2 <- renderPlotly({
   }
 
   fluo_m <- py_dsf_to_df(dsf,mode = 'derivative2')
-  colors <- dsf$get_experiment_properties('all_colors',flatten=TRUE)
+  colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
   
   if (!(is.null(fluo_m))) {
     p <- plot_fluo_signal(fluo_m,colors,"Second derivative",
@@ -414,6 +419,8 @@ output$tm_derivative <- renderPlotly({
   if (all(sapply(derivatives, is.null))) {
     return(NULL)
   }
+
+  reactives$data_was_fitted <- FALSE
 
   conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
   tms_from_deriv <- dsf$get_experiment_properties('tms_from_deriv',flatten=TRUE)
@@ -504,6 +511,8 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
 
     if (length(fluo_predictions_all) == 0 ) return(NULL)
 
+    reactives$data_was_fitted <- TRUE
+
     std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
     max_std_err <- max(std_error_estimate_all)
 
@@ -551,16 +560,7 @@ observeEvent(input$model_selected,{
   return(NULL)
 })
 
-output$data_was_fitted <- reactive({
-  req(input$table1)
-  # re evaluate expression if the user fitted data again
-  req(input$btn_cal)
-  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
-  return(length(fitted_conditions)>0)
 
-})
-
-outputOptions(output, "data_was_fitted", suspendWhenHidden = FALSE)
 outputOptions(output, "three_state_model_selected", suspendWhenHidden = FALSE)
 
 output$params_table <- renderTable({
@@ -569,9 +569,6 @@ output$params_table <- renderTable({
   params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
   params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
   params_name <- unique(params_name)
-
-  # We need a list of vectors, and we had a matrix before
-  params_all <- split(params_all, seq(nrow(params_all)))
 
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
@@ -592,9 +589,6 @@ output$params_table_errors <- renderTable({
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
   params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
   params_name <- unique(params_name)
-
-  # We need a list of vectors, and we had a matrix before
-  errors_percentage_all <- split(errors_percentage_all, seq(nrow(errors_percentage_all)))
 
   return(get_sorted_params_table_errors(
     errors_percentage_all,
@@ -892,8 +886,6 @@ get_results_plot <- reactive({
   params_name <- unique(params_name)
 
   params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
-  # We need a list of vectors, and we had a matrix before
-  params_all <- split(params_all, seq(nrow(params_all)))
 
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 

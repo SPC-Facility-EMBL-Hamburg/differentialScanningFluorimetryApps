@@ -6,9 +6,6 @@ output$download_params_table <- downloadHandler(filename = function() {
   params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
   params_name <- unique(params_name)
 
-  # We need a list of vectors, and we had a matrix before
-  params_all <- split(params_all, seq(nrow(params_all)))
-
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
   df <- get_sorted_params_table(
@@ -29,9 +26,6 @@ output$download_params_errors_table <- downloadHandler(filename = function() {
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
   params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
   params_name <- unique(params_name)
-
-  # We need a list of vectors, and we had a matrix before
-  errors_percentage_all <- split(errors_percentage_all, seq(nrow(errors_percentage_all)))
 
   df <- get_sorted_params_table_errors(
     errors_percentage_all,
@@ -194,8 +188,6 @@ output$download_unfolded_fraction_plot <- downloadHandler(filename = function() 
 
     params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
     params_all  <- dsf$get_experiment_properties('params_all',flatten=TRUE)
-    # We need a list of vectors, and we had a matrix before
-    params_all <- split(params_all, seq(nrow(params_all)))
     params_name <- unique(params_name)
     fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 

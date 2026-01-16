@@ -12,7 +12,7 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
                    tippy::tippy_this(
                      elementId = "info_uu1-1",
                      tooltip = "Check the User Guide to understand the format of the input files.
-                      Many files can be imported together.",
+                      Hint: many files can be imported. To restart, refresh the tool.",
                      placement = "right"))),
       
       # Little hack to use the withBusyIndicatorUI function (loading spinner)

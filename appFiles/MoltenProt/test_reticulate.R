@@ -1,5 +1,6 @@
 library(reticulate)
 library(plotly)
+library(tidyverse)
 
 source("server_files/load_input_helpers.R")
 source("server_files/helpers.R")
@@ -16,6 +17,8 @@ dsf$add_experiment('./www/demo.xlsx')
 
 dsf$set_signal(dsf$all_signals[1])
 
+dsf$set_colors(rep('blue',48))
+
 dsf$select_conditions(c(rep(TRUE,4),rep(FALSE,44)))
 
 dsf$estimate_fluo_derivates()
@@ -23,19 +26,17 @@ dsf$set_baseline_types(2,2)
 dsf$estimate_baselines_parameters()
 dsf$equilibrium_two_state(0)
 
-dfs <- list()
-for (exp in dsf$available_experiments) {
-  py_obj <- dsf$experiments[[exp]]
-  fluo <- py_obj$fluo
-  conds <- py_obj$conditions
-  temps <- py_obj$temps
-  print(conds)
-  df <- make_df4plot_row_wise(fluo,conds,temps)
-  colnames(df)[colnames(df) == 'temp'] <- 'temperature'
-  df$temperature <- df$temperature - 273.15 # Kelvin to Centigrade
-  dfs[[length(dfs)+1]] <- df
-}
+params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
+params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
+params_name <- unique(params_name)
 
-df <- colbind_pad(dfs)
+fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
-print(head(df))
+get_sorted_params_table(
+params_all,
+fitted_conditions,
+16,
+params_name,
+'Tm'
+)
+

@@ -183,3 +183,31 @@ def test_remove_all_experiments():
         fitters.delete_experiments(exp)
 
     assert len(fitters.experiments) == 0
+
+def test_demo_and_aunty_set_signal():
+
+    fitters.add_experiment(prometheus_file,"prometheus_demo")
+    fitters.add_experiment(aunty_file,"aunty_demo")
+
+    fitters.set_signal(fitters.all_signals[0])  
+
+    fitters.set_conditions(['Cond1']*49)
+    fitters.set_colors(['#00FF00']*49)
+    fitters.select_conditions([True]*49)
+
+    fitters.estimate_fluo_derivates(temp_window_length=8)
+
+    fitters.set_signal("350nm")
+    fitters.set_conditions(['Cond1']*49)
+    fitters.set_colors(['#00FF00']*49)
+    fitters.select_conditions([True]*49)
+
+    fitters.estimate_fluo_derivates(temp_window_length=8)
+
+    # Verify we have only 48 derivatives
+
+    derivatives = fitters.get_experiment_properties('derivative',flatten=True)
+
+    print(derivatives)
+
+    assert len(derivatives[0]) == 48

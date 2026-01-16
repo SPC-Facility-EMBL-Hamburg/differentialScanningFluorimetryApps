@@ -71,8 +71,9 @@ colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
 splitted_colors <- split_vec(colors,20)
 
 i <- 0
-plots <- list()
+
 for (split_cond in splitted_conditions) {
+
   i <- i+1
   
   temp_df <- fluo_m %>% filter(cond_ %in% split_cond) %>% unnest(cols = c(data)) %>% ungroup()
@@ -178,9 +179,6 @@ params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
 params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
 params_name <- unique(params_name)
 
-# We need a list of vectors, and we had a matrix before
-params_all <- split(params_all, seq(nrow(params_all)))
-
 fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
 table <- get_sorted_params_table(
@@ -206,9 +204,6 @@ errors_percentage_all <- dsf$get_experiment_properties('errors_percentage_all',f
 fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
 params_name <- unique(params_name)
-
-# We need a list of vectors, and we had a matrix before
-errors_percentage_all <- split(errors_percentage_all, seq(nrow(errors_percentage_all)))
 
 table <- get_sorted_params_table_errors(
   errors_percentage_all,
@@ -291,8 +286,6 @@ params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
 params_name <- unique(params_name)
 
 params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
-# We need a list of vectors, and we had a matrix before
-params_all <- split(params_all, seq(nrow(params_all)))
 
 fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
@@ -345,8 +338,6 @@ if (any(selected_indexes) & (input$model_selected %in% c("EquilibriumTwoState","
   params_name <- unique(params_name)
 
   params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
-  # We need a list of vectors, and we had a matrix before
-  params_all <- split(params_all, seq(nrow(params_all)))
 
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
