@@ -66,6 +66,8 @@ observeEvent(input$dsf_files,{
 
     resetConditionsTable()
 
+    dsf$delete_experiments("ALL")
+
     dsf_data_files <- input$dsf_files$datapath
     names <- input$dsf_files[[1]]
 
@@ -101,14 +103,14 @@ observeEvent(input$dsf_files,{
         reactives$full_spectra <- dsf$full_spectrum
 
         if (dsf$full_spectrum) {
-            conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE,full_spectrum_only=TRUE)
+            conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE,mode="full_spectrum")
             reactives$include_vector <- rep(T,length(conditions))
             reactives$min_wl <- dsf$min_wavelength
             reactives$max_wl <- dsf$max_wavelength
 
         }
 
-        conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE)
+        conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE,mode="all")
 
         reactives$nconditions <- length(conditions)
 
@@ -126,7 +128,7 @@ observeEvent(input$dsf_files,{
 
         renderConditionsTable(tables)
 
-        temps <- dsf$get_experiment_properties('temps',flatten=TRUE)
+        temps <- dsf$get_experiment_properties('temps',flatten=TRUE,mode="all")
 
         min_temp <- round(min(temps) - 273.15) # To degree celsius
         max_temp <- round(max(temps) - 273.15) # To degree celsius
@@ -261,7 +263,7 @@ observeEvent(input$sort_conditions,{
 
   dsf$sort_by_conditions_name(input$sort_conditions)
 
-  conditions_original <- dsf$get_experiment_properties('conditions_original',flatten=TRUE)
+  conditions_original <- dsf$get_experiment_properties('conditions_original',flatten=TRUE,mode="all")
 
   tables <- get_renderRHandsontable_list(
     conditions_original,reactives$global_n_rows_conditions_table
@@ -291,7 +293,7 @@ observeEvent(input$show_colors_column,{
         color_vector <- as.character(condition_include_list$color_vector)
     } else {
     # If the colors are shown, we use the colors from the dsf object
-        color_vector <- dsf$get_experiment_properties('all_colors',flatten=TRUE)
+        color_vector <- dsf$get_experiment_properties('all_colors',flatten=TRUE,mode="all")
     }
 
     tables <- get_renderRHandsontable_list(

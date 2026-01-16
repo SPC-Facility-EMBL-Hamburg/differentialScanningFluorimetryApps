@@ -7,15 +7,25 @@ source("server_files/helpers.R")
 source("server_files/plot_functions.R")
 
 user        <- Sys.info()['user']
-reticulate::use_python(paste0("/Users/",user,"/myenv/bin/python"), required = TRUE)
+#reticulate::use_python(paste0("/Users/",user,"/myenv/bin/python"), required = TRUE)
+reticulate::use_python("/home/os/myenv/bin/python", required = TRUE)
 
 reticulate::source_python("helpers.py")
 reticulate::source_python("main.py")
 
 dsf <- ManyDsfFitters()
+print("here")
 dsf$add_experiment('./www/demo.xlsx')
-
+print("here")
 dsf$set_signal(dsf$all_signals[1])
+print("here")
+
+temps <- dsf$get_experiment_properties('temps',flatten=TRUE,mode="all")
+
+print("here")
+
+min_temp <- round(min(temps) - 273.15) # To degree celsius
+max_temp <- round(max(temps) - 273.15) # To degree celsius
 
 dsf$set_colors(rep('blue',48))
 
@@ -26,17 +36,12 @@ dsf$set_baseline_types(2,2)
 dsf$estimate_baselines_parameters()
 dsf$equilibrium_two_state(0)
 
-params_all <- dsf$get_experiment_properties('params_all',flatten=TRUE)
-params_name <- dsf$get_experiment_properties('params_name',flatten=TRUE)
-params_name <- unique(params_name)
+std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
 
-fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
+print(std_error_estimate_all)
 
-get_sorted_params_table(
-params_all,
-fitted_conditions,
-16,
-params_name,
-'Tm'
-)
+max_std_err <- max(std_error_estimate_all)
 
+
+exp <- dsf$experiments[['demo']]
+print(exp$std_error_estimate_all)

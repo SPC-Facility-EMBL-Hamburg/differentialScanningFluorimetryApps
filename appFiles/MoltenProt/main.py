@@ -6,6 +6,7 @@ import os
 import numpy as np
 
 from moltenprot_shiny import DsfFitter
+from helpers import to_list
 
 class ManyDsfFitters:
 
@@ -58,7 +59,7 @@ class ManyDsfFitters:
 
         if self.full_spectrum:
 
-            wls = self.get_experiment_properties('wavelengths',flatten=True)
+            wls = self.get_experiment_properties('wavelengths',flatten=True,mode="full_spectrum")
 
             self.min_wavelength = np.min(wls)
             self.max_wavelength = np.max(wls)
@@ -67,8 +68,7 @@ class ManyDsfFitters:
 
     def set_unique_signals(self):
 
-        all_signals = self.get_experiment_properties('signals')
-        all_signals = np.concatenate(all_signals)
+        all_signals = self.get_experiment_properties('signals',mode="all",flatten=True)
 
         if len(all_signals) > 0:
 
@@ -78,7 +78,11 @@ class ManyDsfFitters:
 
         return None
 
-    def delete_experiments(self, names):
+    def delete_experiments(self, names="ALL"):
+
+        if names == "ALL":
+
+            names = list(self.experiments.keys())
 
         if not isinstance(names, list):
 
@@ -135,7 +139,6 @@ class ManyDsfFitters:
     def filter_by_temperature(self,min_temp,max_temp):
 
         kwargs = {'min_temp':min_temp,'max_temp':max_temp}
-
         self.apply_to_available_experiments('filter_by_temperature',**kwargs)
 
         return None
@@ -150,9 +153,7 @@ class ManyDsfFitters:
 
     def set_colors(self,color_list):
 
-        # Transform to list if needed
-        if not isinstance(color_list,list):
-            color_list = [color_list]
+        color_list = to_list(color_list)
 
         counter = 0
 
@@ -160,7 +161,7 @@ class ManyDsfFitters:
 
             conditions_i_n = len(fitter.conditions_original)
 
-            color_list_i = color_list[counter:counter+conditions_i_n]
+            color_list_i = to_list(color_list[counter:counter+conditions_i_n])
 
             counter += conditions_i_n
 
@@ -170,9 +171,7 @@ class ManyDsfFitters:
 
     def set_conditions(self,conditions_list):
 
-        # Transform to list if needed
-        if not isinstance(conditions_list,list):
-            conditions_list = [conditions_list]
+        conditions_list = to_list(conditions_list)
 
         counter = 0
 
@@ -180,7 +179,7 @@ class ManyDsfFitters:
 
             conditions_i_n = len(fitter.conditions_original)
 
-            conditions_list_i = conditions_list[counter:counter+conditions_i_n]
+            conditions_list_i = to_list(conditions_list[counter:counter+conditions_i_n])
 
             counter += conditions_i_n
 
@@ -190,9 +189,7 @@ class ManyDsfFitters:
 
     def select_conditions(self,boolean_mask):
 
-        # Transform to list if needed
-        if not isinstance(boolean_mask,list):
-            boolean_mask = [boolean_mask]
+        boolean_mask = to_list(boolean_mask)
 
         counter = 0
 
@@ -200,7 +197,7 @@ class ManyDsfFitters:
 
             conditions_i_n = len(fitter.conditions_original)
 
-            boolean_mask_i = boolean_mask[counter:counter+conditions_i_n]
+            boolean_mask_i = to_list(boolean_mask[counter:counter+conditions_i_n])
 
             counter += conditions_i_n
 
@@ -221,32 +218,60 @@ class ManyDsfFitters:
 
         return None
 
-    def get_experiment_properties(self, variable,flatten=False,remove_none=True,full_spectrum_only=False):
+    def get_experiment_properties(self, variable,flatten=False,remove_none=True,mode="available"):
+
+        if mode == "full_spectrum":
+
+            exps = self.full_spectrum_experiments
+
+        elif mode == 'available':
+
+            exps = self.available_experiments
+
+        else:
+
+            exps = list(self.experiments.keys())
 
         attributes = []
 
-        for _, fitter in self.experiments.items():
+        if len(exps) == 0:
 
-            if full_spectrum_only and not fitter.full_spectrum:
+            #raise error that there are no available experiments
+            raise ValueError("No experiments were selected")
 
-                continue
+        for exp in exps:
 
-            attribute = getattr(fitter, variable)
+            attribute = getattr(self.experiments[exp],variable)
 
             if remove_none and attribute is None:
 
                 continue
 
-            # Verify if it is a list or 1D array
-            is_list = isinstance(attribute, list) or (isinstance(attribute, np.ndarray) and attribute.ndim == 1)
+            is_list = isinstance(attribute, list)
 
-            if flatten and is_list:
+            if is_list and flatten:
 
                 attributes.extend(attribute)
-            
+
             else:
 
                 attributes.append(attribute)
+
+
+        if flatten:
+
+            is_1D_array = not is_list and isinstance(attributes[0], np.ndarray) and attributes[0].ndim == 1
+            is_float  = isinstance(attributes[0],float)
+            is_string = isinstance(attributes[0], str)
+            is_bool   = isinstance(attributes[0], bool)
+
+            if is_1D_array:
+
+                attributes = np.concatenate(attributes)
+
+            elif is_float or is_string or is_bool:
+
+                attributes = np.array(attributes)
 
         return attributes
 

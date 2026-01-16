@@ -52,35 +52,35 @@ def test_temperature_range():
 
 def test_set_colors():
 
-    all_conditions = fitters.get_experiment_properties('conditions')
+    all_conditions = fitters.get_experiment_properties('conditions',mode="all",flatten=True)
 
-    n_conditions = np.sum([len(x) for x in all_conditions])
+    n_conditions = len(all_conditions)
 
     colors = ['#FF0000'] * n_conditions
 
     fitters.set_colors(colors)
 
-    assert len(fitters.experiments['0'].all_colors) == len(all_conditions[0])
+    assert len(fitters.experiments['0'].all_colors) == len(fitters.experiments['0'].conditions_original)
 
 def test_set_conditions():
 
-    all_conditions = fitters.get_experiment_properties('conditions')
+    all_conditions = fitters.get_experiment_properties('conditions',mode="all",flatten=True)
 
-    n_conditions = np.sum([len(x) for x in all_conditions])
+    n_conditions = len(all_conditions)
 
     new_conditions = ['Condition'] * n_conditions
 
     fitters.set_conditions(new_conditions)
 
-    updated_conditions = fitters.get_experiment_properties('conditions')
+    updated_conditions = fitters.get_experiment_properties('conditions',mode="all",flatten=True)
 
-    assert all([all([cond == 'Condition' for cond in conds]) for conds in updated_conditions])
+    assert all([cond == 'Condition' for cond in updated_conditions])
 
 def test_select_conditions():
 
-    all_conditions = fitters.get_experiment_properties('conditions')
+    all_conditions = fitters.get_experiment_properties('conditions',mode='all',flatten=True)
 
-    n_conditions = np.sum([len(x) for x in all_conditions])
+    n_conditions = len(all_conditions)
 
     boolean_mask = [True] * n_conditions
 
@@ -208,6 +208,4 @@ def test_demo_and_aunty_set_signal():
 
     derivatives = fitters.get_experiment_properties('derivative',flatten=True)
 
-    print(derivatives)
-
-    assert len(derivatives[0]) == 48
+    assert derivatives[0].shape == (651,48)

@@ -11,6 +11,35 @@ from scipy.optimize     import least_squares
 
 from constants import R_gas, temp_standard
 
+def to_list(x):
+
+    # Transform to list if needed
+    is_float = isinstance(x, float)
+    is_str   = isinstance(x, str)
+    is_bool  = isinstance(x, bool)
+
+    if is_float or is_str or is_bool:
+
+        return [x]
+
+    elif isinstance(x, list):
+
+        return x
+
+    elif isinstance(x,tuple):
+
+        return list(x)
+
+    elif isinstance(x, np.ndarray):
+
+        lst = x.tolist()
+
+        return lst
+
+    else:
+
+        raise ValueError("Input must be a float, bool, string, list, or numpy array.")
+
 def fit_line_robust(x,y):
 
     """

@@ -282,6 +282,7 @@ class DsfFitter:
 
                 read_fx = read_fx_map.get(file_type)
                 read_fx(file)
+
                 return True
 
             else:
@@ -313,7 +314,7 @@ class DsfFitter:
 
         conditions    = conditions_df[['Sample ID']].values.flatten().astype(str)
 
-        self.conditions_original = conditions
+        self.conditions_original = conditions.tolist()
         # Add position index to avoid problems with empty names
 
         self.conditions = [cond + " P" + str(i+1) if is_blank(cond) else cond for i,cond in enumerate(conditions)]
@@ -418,7 +419,7 @@ class DsfFitter:
         conditions         = np.array(df.iloc[row_index_begin:row_index_end,col_index])
         number_of_conditions = len(conditions)
 
-        self.conditions_original = conditions
+        self.conditions_original = conditions.tolist()
         # Add position index to avoid problems with empty names
         self.conditions = [cond + " P" + str(i+1) if is_blank(cond) else cond for i,cond in enumerate(conditions)]
 
@@ -497,7 +498,7 @@ class DsfFitter:
 
         xls  = pd.ExcelFile(thermofluor_file)
         dat = pd.read_excel(xls, "RFU",header=None)
-        conditions = np.array(dat.iloc[0, 1:])
+        conditions = np.array(dat.iloc[0, 1:]).tolist()
 
         self.conditions_original = conditions
         self.conditions = conditions
@@ -581,7 +582,7 @@ class DsfFitter:
 
             conditions = np.repeat('',fluo.shape[1])
 
-        self.conditions_original = conditions
+        self.conditions_original = conditions.tolist()
         # Add position index to avoid problems with empty names
         self.conditions = [cond + " P" + str(i+1) if is_blank(cond) else cond for i,cond in enumerate(conditions)]
 
@@ -613,7 +614,7 @@ class DsfFitter:
         data      = pd.read_csv(qs_file, skiprows=start_row, sep=r"\s+", header=None)
 
         u, ind     = np.unique(data.iloc[:,1], return_index=True)
-        conditions = u[np.argsort(ind)]
+        conditions = u[np.argsort(ind)].tolist()
 
         self.conditions_original = conditions
         self.conditions = conditions
@@ -1153,8 +1154,8 @@ class DsfFitter:
 
         self.signals = np.array(named_wls)
 
-        self.conditions          = np.array(conditions)
-        self.conditions_original = np.array(conditions)
+        self.conditions          = conditions
+        self.conditions_original = conditions
 
         # Assign minimum and maximum wavelengths to self
         self.min_wavelength = np.floor(np.min(wavelengths))
@@ -1283,8 +1284,8 @@ class DsfFitter:
 
         named_wls = ['BCM'] + named_wls
 
-        self.conditions          = np.array(conditions)
-        self.conditions_original = np.array(conditions)
+        self.conditions          = conditions
+        self.conditions_original = conditions
 
         self.signals = np.array(named_wls)
 
@@ -1459,10 +1460,6 @@ class DsfFitter:
         if len(color_list) == 0:
             return None
 
-        # convert to list if it is not one
-        if not isinstance(color_list, (list, np.ndarray)):
-            color_list = [color_list]
-
         if len(color_list) != len(self.conditions_original):
             raise ValueError("Length of color_list must match number of conditions.")
 
@@ -1484,10 +1481,6 @@ class DsfFitter:
             Sets self.conditions
         """
 
-        # convert to list if it is not one
-        if not isinstance(condition_list, (list, np.ndarray)):
-            condition_list = [condition_list]
-
         if len(condition_list) != len(self.conditions_original):
             raise ValueError("Length of condition_list must match number of conditions.")
 
@@ -1508,10 +1501,6 @@ class DsfFitter:
         Select a subset of samples that we want to analyze
 
         """
-
-        # Convert to list if it is not one
-        if not isinstance(boolean_mask, (list, np.ndarray)):
-            boolean_mask = [boolean_mask]
 
         self.conditions = [x for i,x in enumerate(self.conditions) if boolean_mask[i]]
 
