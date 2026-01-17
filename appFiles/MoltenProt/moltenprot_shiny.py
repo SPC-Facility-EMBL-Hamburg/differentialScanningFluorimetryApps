@@ -1351,6 +1351,8 @@ class DsfFitter:
         self.fluo   = self.signal_data_dictionary[which]
         self.temps  = self.temp_data_dictionary[which]
 
+        self.boolean_mask = [True] * len(self.fluo) # select all columns, initially
+
         self.set_signal_type(which)
 
         # Reset other values
@@ -1431,8 +1433,10 @@ class DsfFitter:
 
         if sort:
 
-            ind                      = index_natsorted(self.conditions_original)
-            self.conditions_original = self.conditions_original[ind]
+            ind = index_natsorted(self.conditions_original)
+            new_conditions = [self.conditions_original[id] for id in ind ]
+
+            self.conditions_original = new_conditions
             self.conditions          = self.conditions_original
             self.signal_data_dictionary = {k: v[:,ind] for k, v in self.signal_data_dictionary.items()}
 
@@ -1441,9 +1445,12 @@ class DsfFitter:
 
         else:
 
-            ind                      = self.idx_no_sorted
-            self.conditions_original = self.conditions_original[ind]
-            self.conditions          = self.conditions_original
+            ind = self.idx_no_sorted
+
+            new_conditions = [self.conditions_original[id] for id in ind ]
+
+            self.conditions_original = new_conditions
+            self.conditions          = new_conditions
             self.signal_data_dictionary = {k: v[:,ind] for k, v in self.signal_data_dictionary.items()}
 
         return None
@@ -1515,6 +1522,8 @@ class DsfFitter:
         if self.fluo is not None:
 
             self.fluo = self.fluo[:,boolean_mask]
+
+        self.boolean_mask = boolean_mask # To allow plotting (whole spectra) only some conditions in the R app
 
         return None
 

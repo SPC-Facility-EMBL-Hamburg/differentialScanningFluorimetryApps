@@ -172,7 +172,7 @@ class ManyDsfFitters:
 
         return None
 
-    def set_conditions(self,conditions_list):
+    def set_conditions(self,conditions_list,original=False):
 
         conditions_list = to_list(conditions_list)
 
@@ -231,6 +231,7 @@ class ManyDsfFitters:
 
             exps = self.available_experiments
 
+        # elif mode == 'all':
         else:
 
             exps = list(self.experiments.keys())
@@ -277,6 +278,14 @@ class ManyDsfFitters:
                 attributes = np.array(attributes)
 
         return attributes
+
+    def sort_by_conditions_name(self,sort=False):
+
+        for _, fitter in self.experiments.items():
+
+            fitter.sort_by_conditions_name(sort)
+
+        return None
 
     def median_filter(self,n_degree_window=8):
 

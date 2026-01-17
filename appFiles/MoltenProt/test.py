@@ -1,3 +1,4 @@
+from filecmp import demo
 
 import numpy as np
 from main import  ManyDsfFitters
@@ -24,17 +25,13 @@ all_files = [
 
 fitters = ManyDsfFitters()
 
-fitters.add_experiment(uncle_file,"test1")
-
+fitters.add_experiment(prometheus_file,"test1")
 
 fitters.set_signal(fitters.all_signals[0])
 fitters.filter_by_temperature(26,39)
 
-fitters.set_colors(["red"])
-fitters.select_conditions([True])
+fitters.set_colors(["red"]*48)
+fitters.select_conditions([True]*48)
 fitters.estimate_fluo_derivates(3)
-fitters.set_baseline_types(1,1)
-fitters.estimate_baselines_parameters()
-fitters.equilibrium_two_state(0)
 
-print(fitters.get_experiment_properties('fitted_conditions',flatten=True))
+fitters.sort_by_conditions_name(True)

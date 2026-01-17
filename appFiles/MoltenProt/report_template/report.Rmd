@@ -232,8 +232,8 @@ fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=T
 total_plots <- ceiling(length(fitted_conditions)/global_chunck_n)
 
 for (selected in 1:total_plots) {
-  real_data  <- fluo_fit_data()$fluo_fit_real
-  model_data <- fluo_fit_data()$fluo_fit_pred
+  real_data  <- reactives$fluo_fit_real
+  model_data <- reactivesfluo_fit_pred
   grid.draw(plot_fluorescence_fit(real_data,model_data,selected,TRUE))
 }
 

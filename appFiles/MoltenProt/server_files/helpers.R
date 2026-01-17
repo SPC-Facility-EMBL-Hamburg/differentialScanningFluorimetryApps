@@ -82,6 +82,13 @@ make_df4plot <- function(fluo_matrix,cond_vector,temp_vector) {
 
 py_dsf_to_df <- function(dsf_py_obj,mode='signal') {
 
+  # Verify we have at least one condition
+  conditions <- dsf_py_obj$get_experiment_properties('conditions',flatten=TRUE)
+
+  if (length(conditions) == 0) {
+    return(NULL)
+  }
+
   available_experiments <- dsf_py_obj$available_experiments
 
   dfs <- list()

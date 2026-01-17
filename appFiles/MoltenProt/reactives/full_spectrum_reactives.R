@@ -172,11 +172,13 @@ renderSpectralPlots <- function() {
     all_signals <- py_obj$signal_data_dictionary
     all_temps   <- py_obj$temp_data_dictionary
 
+    include_vector <- py_obj$boolean_mask
+
     tog <- join_all_signals(
       all_signals,
       all_temps,
       c(py_obj$conditions),
-      reactives$include_vector,
+      include_vector,
       input$sg_range[1],
       input$sg_range[2]
     )

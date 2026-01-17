@@ -167,8 +167,9 @@ output$download_fit_plots = downloadHandler(
       fns <- c()
       for (selected in 1:total_plots) {
         iter <- iter + 1
-        real_data  <- fluo_fit_data()$fluo_fit_real
-        model_data <- fluo_fit_data()$fluo_fit_pred
+        real_data  <- reactives$fluo_fit_real
+        model_data <- reactives$fluo_fit_pred
+
         fname <- paste0("fitting_plot_",iter,".png")
         fns   <- c(fns,fname)
         plot_fluorescence_fit(real_data,model_data,selected,TRUE) %>% 

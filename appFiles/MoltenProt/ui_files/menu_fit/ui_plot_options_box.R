@@ -4,7 +4,7 @@ box(title = "Plot options", width = 3, solidHeader = T, status = "primary",
       column(9,p(HTML("<b></b>"),
                  span(shiny::icon("info-circle"), id = "info_uu222-4"),
                  
-                 selectInput("select_fitting_plot", NULL,c("Fitted conditions" = "Fit_1")),
+                 selectInput("select_fitting_plot", NULL,c("Fitted conditions" = "Fit_1"),selectize = FALSE),
                  
                  tippy::tippy_this(elementId = "info_uu222-4",
                                    tooltip = "Select which fittings to display. 

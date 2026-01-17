@@ -1,43 +1,3 @@
-reactives <- reactiveValues(
-  data_loaded                    = FALSE, # To control the display of plots/tables
-  nconditions                    = 0,     # Number of total conditions imported
-  report_was_created             = FALSE, # To activate the download report button
-  global_max_conditions          = 384,   # To determine the load input table number of columns. 
-  global_n_rows_conditions_table = 96,    # Number of rows for the load input table
-  include_vector                 = NULL,  # To know which conditions to plot in the whole spectra plots
-  full_spectra                   = FALSE, # Full spectra instead of single wavelength
-  spectra_panel_names            = NULL,
-  reportDir                      = NULL,
-  model_is_two_state             = NULL,
-  model_name                     = NULL,
-  min_wl                         = 0,
-  max_wl                         = 800,
-  data_was_fitted                = FALSE
-  )
-
-output$data_loaded             <- reactive({
-  return(reactives$data_loaded)})
-
-output$report_was_created             <- reactive({
-  return(reactives$report_was_created)})
-
-output$full_spectra             <- reactive({
-  return(reactives$full_spectra)})
-
-output$data_was_fitted  <- reactive({
-  return(reactives$data_was_fitted)})
-
-output$model_is_two_state  <- reactive( { return(reactives$model_is_two_state) } )
-
-output$model_name  <- reactive( { return(reactives$model_name) } )
-
-outputOptions(output, "data_loaded"       , suspendWhenHidden = FALSE)
-outputOptions(output, "report_was_created", suspendWhenHidden = FALSE)
-outputOptions(output, "full_spectra"      , suspendWhenHidden = FALSE)
-outputOptions(output, "model_is_two_state", suspendWhenHidden = FALSE)
-outputOptions(output, "model_name", suspendWhenHidden = FALSE)
-outputOptions(output, "data_was_fitted", suspendWhenHidden = FALSE)
-
 resetConditionsTable <- function() {
 
     output$table1 <- NULL
@@ -64,6 +24,7 @@ observeEvent(input$dsf_files,{
 
     reactives$data_loaded <- FALSE
     reactives$data_was_fitted <- FALSE
+    reactives$have_plot_data <- FALSE
 
     resetConditionsTable()
 
@@ -105,7 +66,6 @@ observeEvent(input$dsf_files,{
 
         if (dsf$full_spectrum) {
             conditions <- dsf$get_experiment_properties('conditions',flatten=TRUE,mode="full_spectrum")
-            reactives$include_vector <- rep(T,length(conditions))
             reactives$min_wl <- dsf$min_wavelength
             reactives$max_wl <- dsf$max_wavelength
 
@@ -159,8 +119,6 @@ observeEvent(
 
   req(reactives$data_loaded)
 
-  reactives$data_loaded <- FALSE
-
   condition_include_list <- get_include_vector(
     input$table1,input$table2,input$table3,input$table4,
     reactives$nconditions,reactives$global_n_rows_conditions_table,
@@ -172,33 +130,44 @@ observeEvent(
 
   color_vector <- as.character(condition_include_list$color_vector)
 
-  dsf$set_signal(input$which)
-
-  # Get signal window range
-  sg_range_min_kelvin <- input$sg_range[1] + 273.15
-  sg_range_max_kelvin <- input$sg_range[2] + 273.15
-
-  temps <- dsf$get_experiment_properties('temps',flatten=TRUE)
-
-  left_bound <- max( sg_range_min_kelvin,min(temps))
-  right_bound <- min( sg_range_max_kelvin,max(temps))
-
-  # ... Modify in place the python class fluorescence signal according to the selected signal window range ...
-  dsf$filter_by_temperature(left_bound,right_bound)
-
   if (input$selected_cond_series != "ALL") {
     include_vector <- include_vector & (series_vector == input$selected_cond_series)
   }
 
-  reactives$include_vector <- c(include_vector)
+  # Return NULL if no conditions are selected
+  if (all(!include_vector))  {
+    reactives$have_plot_data <- FALSE
+    return(NULL)
+  } else {
+    reactives$have_plot_data <- TRUE
+  }
+
+  # Get signal window range
+  left_bound <- input$sg_range[1]
+  right_bound <- input$sg_range[2]
+
+  # Give an error if the difference is less than 13 degrees
+  if ( (right_bound - left_bound) < 13 ) {
+    shinyalert(
+      title = "Error",
+      text = "The selected temperature range is too small. Please, select a range of at least 13 degrees Celsius.",
+      type = "error"
+    )
+    reactives$have_plot_data <- FALSE
+    return(NULL)
+  }
+
+  reactives$data_loaded <- FALSE
+
+  dsf$set_signal(input$which)
+
+  # ... Modify in place the python class fluorescence signal according to the selected signal window range ...
+  dsf$filter_by_temperature(left_bound,right_bound)
 
   # ... use only the conditions selected by the user ...
   dsf$set_conditions(conditions_vector)
 
   dsf$set_colors(color_vector)
-
-  # Return NULL if no conditions are selected
-  if (all(!include_vector))   return(NULL)
 
   dsf$select_conditions(include_vector)
 
@@ -227,11 +196,12 @@ observeEvent(
 
   for (series in current_series) {
     if (!(series %in%  series_vector)) {
-      # Delete series no longer in the table, except 'ALL'
-      if (series == 'ALL') {next}
+      # Delete series no longer in the table
       current_series <- current_series[current_series != series]
     }
   }
+
+  current_series <- c(current_series[current_series != 'ALL'],'ALL')
 
   updateSelectInput(session, "selected_cond_series",choices  = c(current_series))
 
@@ -244,12 +214,15 @@ observeEvent(input$layout_file$datapath,{
   req(input$table1)
   if (!(is.null(input$layout_file))) {
     
-    conditions <- load_layout(input$layout_file$datapath)
+    new_conditions <- load_layout(input$layout_file$datapath)[1:reactives$nconditions]
 
-    dsf$set_conditions(conditions[1:reactives$nconditions])
-    dsf$set_conditions(conditions[1:reactives$nconditions],original=TRUE)
+    dsf$set_conditions(new_conditions)
+    dsf$set_conditions(new_conditions,original=TRUE)
 
-    tables <- get_renderRHandsontable_list(conditions,reactives$global_n_rows_conditions_table)
+    tables <- get_renderRHandsontable_list(
+      new_conditions,
+      reactives$global_n_rows_conditions_table
+    )
     
     renderConditionsTable(tables)
 
@@ -267,7 +240,8 @@ observeEvent(input$sort_conditions,{
   conditions_original <- dsf$get_experiment_properties('conditions_original',flatten=TRUE,mode="all")
 
   tables <- get_renderRHandsontable_list(
-    conditions_original,reactives$global_n_rows_conditions_table
+    conditions_original,
+    reactives$global_n_rows_conditions_table
   )
   
   renderConditionsTable(tables)
@@ -315,24 +289,26 @@ output$signal <- renderPlotly({
   req(input$table1)
   req(reactives$data_loaded)
 
+  if (!reactives$have_plot_data) {
+    return(NULL)
+  }
+
   fluo_m <- py_dsf_to_df(dsf)
 
   colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
 
-  if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,colors,input$which,
-                          input$plot_width, input$plot_height, 
-                          input$plot_type,input$plot_font_size,input$plot_axis_size,
-                          show_x_grid=input$show_x_grid,
-                          show_y_grid=input$show_y_grid,
-                          show_axis_lines=input$show_axis_lines,
-                          tickwidth=input$plot_tickwidth,
-                          ticklen=input$plot_ticklen,
-                          line_width=input$plot_line_width)
-    return(p)
-  }
-  return(NULL)
-  
+  p <- plot_fluo_signal(fluo_m,colors,input$which,
+                        input$plot_width, input$plot_height,
+                        input$plot_type,input$plot_font_size,input$plot_axis_size,
+                        show_x_grid=input$show_x_grid,
+                        show_y_grid=input$show_y_grid,
+                        show_axis_lines=input$show_axis_lines,
+                        tickwidth=input$plot_tickwidth,
+                        ticklen=input$plot_ticklen,
+                        line_width=input$plot_line_width)
+  return(p)
+
+
 }
 )
 
@@ -343,10 +319,7 @@ output$signal_der1 <- renderPlotly({
   req(input$table1)
   req(reactives$data_loaded)
 
-  derivatives <- dsf$get_experiment_properties('derivative')
-
-  # find if there is at least one non null derivative
-  if (all(sapply(derivatives, is.null))) {
+  if (!reactives$have_plot_data) {
     return(NULL)
   }
 
@@ -360,20 +333,18 @@ output$signal_der1 <- renderPlotly({
   fluo_m <- py_dsf_to_df(dsf,mode = 'derivative')
   colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
 
-  if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,colors,"First derivative",
-                          input$plot_width, input$plot_height, 
-                          input$plot_type,input$plot_font_size,input$plot_axis_size,
-                          show_x_grid=input$show_x_grid,
-                          show_y_grid=input$show_y_grid,
-                          show_axis_lines=input$show_axis_lines,
-                          tickwidth=input$plot_tickwidth,
-                          ticklen=input$plot_ticklen,
-                          line_width=input$plot_line_width)
-    return(p)
-  }
-  return(NULL)
-  
+  p <- plot_fluo_signal(fluo_m,colors,"First derivative",
+                        input$plot_width, input$plot_height,
+                        input$plot_type,input$plot_font_size,input$plot_axis_size,
+                        show_x_grid=input$show_x_grid,
+                        show_y_grid=input$show_y_grid,
+                        show_axis_lines=input$show_axis_lines,
+                        tickwidth=input$plot_tickwidth,
+                        ticklen=input$plot_ticklen,
+                        line_width=input$plot_line_width)
+  return(p)
+
+
 }
 )
 
@@ -383,30 +354,25 @@ output$signal_der2 <- renderPlotly({
   req(input$table1)
   req(reactives$data_loaded)
 
-  derivatives2 <- dsf$get_experiment_properties('derivative2')
-
-  # find if there is at least one non null derivative
-  if (all(sapply(derivatives2, is.null))) {
+  if (!reactives$have_plot_data) {
     return(NULL)
   }
 
   fluo_m <- py_dsf_to_df(dsf,mode = 'derivative2')
   colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
   
-  if (!(is.null(fluo_m))) {
-    p <- plot_fluo_signal(fluo_m,colors,"Second derivative",
-                          input$plot_width, input$plot_height, 
-                          input$plot_type,input$plot_font_size,input$plot_axis_size,
-                          show_x_grid=input$show_x_grid,
-                          show_y_grid=input$show_y_grid,
-                          show_axis_lines=input$show_axis_lines,
-                          tickwidth=input$plot_tickwidth,
-                          ticklen=input$plot_ticklen,
-                          line_width=input$plot_line_width)
-    return(p)
-  }
-  return(NULL)
-  
+  p <- plot_fluo_signal(fluo_m,colors,"Second derivative",
+                        input$plot_width, input$plot_height,
+                        input$plot_type,input$plot_font_size,input$plot_axis_size,
+                        show_x_grid=input$show_x_grid,
+                        show_y_grid=input$show_y_grid,
+                        show_axis_lines=input$show_axis_lines,
+                        tickwidth=input$plot_tickwidth,
+                        ticklen=input$plot_ticklen,
+                        line_width=input$plot_line_width)
+  return(p)
+
+
 }
 )
 
@@ -440,9 +406,7 @@ output$tm_derivative <- renderPlotly({
 })
 
 # Fit when the user presses the button
-fluo_fit_data <- eventReactive(input$btn_cal, {
-
-  print("here!")
+observeEvent(input$btn_cal, {
 
   model_selected <- input$model_selected
 
@@ -458,84 +422,83 @@ fluo_fit_data <- eventReactive(input$btn_cal, {
   dsf$set_baseline_types(poly_order_native,poly_order_unfolded)
 
   req(input$table1)
+  req(reactives$have_plot_data)
 
-  all_fluo <- dsf$get_experiment_properties('fluo',flatten=TRUE)
+  reactives$data_was_fitted <- FALSE
+  reactives$fluo_fit_real <- NULL
+  reactives$fluo_fit_pred <- NULL
 
-  # Verify that one of the selected conditions has fluorescence data
-  have_data <- !all(sapply(all_fluo, is.null))
+  dsf$estimate_baselines_parameters(input$temp_range_baseline_estimation)
 
-  # check we have data to fit
-  if (have_data)   {
+  reactives$model_is_two_state <- grepl('TwoState',input$model_selected)
+  reactives$model_name <- input$model_selected
 
-    reactives$data_was_fitted <- FALSE
+  withBusyIndicatorServer("hiddenBtnFit",{
 
-    dsf$estimate_baselines_parameters(input$temp_range_baseline_estimation)
+    # ... Fit according to selection ...
+    if (model_selected == "EquilibriumTwoState"  )   {
 
-    reactives$model_is_two_state <- grepl('TwoState',input$model_selected)
-    reactives$model_name <- input$model_selected
+      dsf$equilibrium_two_state(input$delta_cp)
 
-    withBusyIndicatorServer("btn_cal",{
+    }
 
-      # ... Fit according to selection ...
-      if (model_selected == "EquilibriumTwoState"  )   {
+    if (model_selected == "EquilibriumThreeState")   {
 
-        dsf$equilibrium_two_state(input$delta_cp)
+      dsf$equilibrium_three_state(
+        input$t1min,input$t1max,
+        input$t2min,input$t2max
+      )
+    }
 
-      }
-      
-      if (model_selected == "EquilibriumThreeState")   {
+    if (model_selected == "EmpiricalTwoState")  dsf$empirical_two_state()
 
-        dsf$equilibrium_three_state(
-          input$t1min,input$t1max,
-          input$t2min,input$t2max
-        )
-      }
-      
-      if (model_selected == "EmpiricalTwoState")  dsf$empirical_two_state()
-      
-      if (model_selected == "EmpiricalThreeState")   {
+    if (model_selected == "EmpiricalThreeState")   {
 
-        dsf$empirical_three_state(
-          input$t1min,input$t1max,
-          input$t2min,input$t2max
-        )
+      dsf$empirical_three_state(
+        input$t1min,input$t1max,
+        input$t2min,input$t2max
+      )
 
-      }
-      
-      if (model_selected == "IrreversibleTwoState" )   {
-        dsf$irreversible_two_state(input$scan_rate)
-      }
+    }
 
-    })
+    if (model_selected == "IrreversibleTwoState" )   {
+      dsf$irreversible_two_state(input$scan_rate)
+    }
 
+  })
 
-    fluo_m <- make_list_df4plot(dsf,global_chunck_n,mode='experimental')
+  fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
 
-    fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)
-
-    if (length(fitted_conditions) == 0 ) return(NULL)
-
-    reactives$data_was_fitted <- TRUE
-
-    std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
-    max_std_err <- max(std_error_estimate_all)
-
-    updateNumericInput(
-        session,
-        "fitting_std_threshold",
-        value = signif(max_std_err*1.01,3),
-        min   = 0,
-        max   = max_std_err*1.02,
-        step  = signif(max_std_err/100,3)
+  if (length(fitted_conditions) == 0 ) {
+    shinyalert(
+      title = "Error",
+      text = "No conditions were fitted. Please, check that the selected model is appropriate for your data, and try changing the fitting parameters.",
+      type = "error"
     )
-
-    fluo_m_pred <- make_list_df4plot(dsf,global_chunck_n,mode='fitted')
-
-    return(list("fluo_fit_real"=fluo_m,"fluo_fit_pred"=fluo_m_pred))
-    
-  } else {
     return(NULL)
   }
+
+  fluo_m <- make_list_df4plot(dsf,global_chunck_n,mode="experimental")
+
+  reactives$data_was_fitted <- TRUE
+
+  std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
+  max_std_err <- max(std_error_estimate_all)
+
+  updateNumericInput(
+      session,
+      "fitting_std_threshold",
+      value = signif(max_std_err*1.01,3),
+      min   = 0,
+      max   = max_std_err*1.02,
+      step  = signif(max_std_err/100,3)
+  )
+
+  fluo_m_pred <- make_list_df4plot(dsf,global_chunck_n,mode='fitted')
+
+  reactives$fluo_fit_real <- fluo_m
+  reactives$fluo_fit_pred <- fluo_m_pred
+
   
 })
 
@@ -638,9 +601,9 @@ output$fluo_fit_plot <- renderPlot({
   
   selected <- get_selected_from_choice_label(input$select_fitting_plot,global_chunck_n)
   
-  real_data  <- fluo_fit_data()$fluo_fit_real
-  model_data <- fluo_fit_data()$fluo_fit_pred
-  
+  real_data  <- reactives$fluo_fit_real
+  model_data <- reactives$fluo_fit_pred
+
   p <- plot_fluorescence_fit(real_data,model_data,selected)
   return(p)
 }
@@ -654,8 +617,8 @@ output$fluo_residuals_plot <- renderPlot({
   
   selected <- get_selected_from_choice_label(input$select_fitting_plot,global_chunck_n)
   
-  real_data  <- fluo_fit_data()$fluo_fit_real
-  model_data <- fluo_fit_data()$fluo_fit_pred
+  real_data  <- reactives$fluo_fit_real
+  model_data <- reactives$fluo_fit_pred
 
   std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
   fitted_conditions <- dsf$get_experiment_properties('fitted_conditions',flatten=TRUE)

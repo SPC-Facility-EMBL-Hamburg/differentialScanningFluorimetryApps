@@ -14,6 +14,7 @@ function(input, output, session) {
   # ... Initialize python_nanoDSF class ...
   dsf <- ManyDsfFitters()
 
+  source(paste0(base_dir,"reactives/reactive_values.R"), local = T)
   source(paste0(base_dir,"reactives/reactives.R"), local = T)
   source(paste0(base_dir,"reactives/full_spectrum_reactives.R"), local = T)
   source(paste0(base_dir,"reactives/download_reactives.R"  ), local = T)
