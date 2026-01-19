@@ -196,12 +196,17 @@ observeEvent(
 
   for (series in current_series) {
     if (!(series %in%  series_vector)) {
-      # Delete series no longer in the table
+      # Delete series no longer in the table, except for ALL
+      if (series == 'ALL') {next}
       current_series <- current_series[current_series != series]
     }
   }
 
-  current_series <- c(current_series[current_series != 'ALL'],'ALL')
+  # Add the "ALL" option to the end, if not present
+    if (!('ALL' %in% current_series)) {
+        current_series <- c(current_series,'ALL')
+    }
+
 
   updateSelectInput(session, "selected_cond_series",choices  = c(current_series))
 
