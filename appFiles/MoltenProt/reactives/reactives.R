@@ -171,10 +171,27 @@ observeEvent(
 
   dsf$select_conditions(include_vector)
 
+  exps <- dsf$available_experiments
+
+  we_have_data <- FALSE
+  for (exp in exps) {
+    py_obj <- dsf$experiments[[exp]]
+    exp_has_data <- !is.null(py_obj$fluo)
+    if (exp_has_data) {
+      we_have_data <- TRUE
+      break
+    }
+  }
+
+  # Verify that at least one available experiment has data
+  if (!we_have_data) {
+    reactives$have_plot_data <- FALSE
+    reactives$data_loaded <- TRUE
+    return(NULL)
+  }
+
   median_filter <- get_median_filter(input$median_filter)
   if (median_filter > 0) {dsf$median_filter(median_filter)}
-
-  exps <- dsf$available_experiments
 
   for (exp in exps) {
 
@@ -387,9 +404,7 @@ output$tm_derivative <- renderPlotly({
   req(input$table1)
   req(reactives$data_loaded)
 
-  # Require that at least one derivative is available
-  derivatives <- dsf$get_experiment_properties('derivative')
-  if (all(sapply(derivatives, is.null))) {
+  if (!reactives$have_plot_data) {
     return(NULL)
   }
 

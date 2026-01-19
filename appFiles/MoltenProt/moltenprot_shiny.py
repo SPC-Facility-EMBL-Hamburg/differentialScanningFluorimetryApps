@@ -288,6 +288,16 @@ class DsfFitter:
             else:
                 return False
 
+    def init_boolean_mask(self):
+
+        """
+        Initialize a boolean mask to select all conditions
+        """
+
+        self.boolean_mask  = [True] * len(self.conditions_original)
+
+        return None
+
     def load_nano_dsf_xlsx(self, processed_dsf_file, sheet_names=None):
 
         """
@@ -986,6 +996,7 @@ class DsfFitter:
         den_wl = named_wls[idx330]
 
         self.create_ratio_signal(num_wl,den_wl)
+        self.init_boolean_mask()
 
         return None
 
@@ -1170,6 +1181,7 @@ class DsfFitter:
         den_wl = named_wls[idx330]
 
         self.create_ratio_signal(num_wl,den_wl)
+        self.init_boolean_mask()
 
         return None
 
@@ -1299,6 +1311,7 @@ class DsfFitter:
         den_wl = named_wls[idx330]
 
         self.create_ratio_signal(num_wl,den_wl)
+        self.init_boolean_mask()
 
         return None
 
@@ -1351,7 +1364,7 @@ class DsfFitter:
         self.fluo   = self.signal_data_dictionary[which]
         self.temps  = self.temp_data_dictionary[which]
 
-        self.boolean_mask = [True] * len(self.fluo) # select all columns, initially
+        self.init_boolean_mask()
 
         self.set_signal_type(which)
 
@@ -1512,6 +1525,19 @@ class DsfFitter:
         Select a subset of samples that we want to analyze
 
         """
+
+        # Verify that we have at least one True in the boolean mask
+        n_true = np.sum(boolean_mask)
+        if n_true == 0:
+
+            self.conditions = []
+            self.colors = []
+            self.fluo = None
+            self.derivative = None
+            self.derivative2 = None
+            self.tms_from_deriv = None
+
+            return None
 
         self.conditions = [x for i,x in enumerate(self.conditions) if boolean_mask[i]]
 

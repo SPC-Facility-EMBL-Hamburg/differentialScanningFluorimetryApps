@@ -172,7 +172,12 @@ renderSpectralPlots <- function() {
     all_signals <- py_obj$signal_data_dictionary
     all_temps   <- py_obj$temp_data_dictionary
 
-    include_vector <- py_obj$boolean_mask
+    include_vector <- c(py_obj$boolean_mask)
+
+    # If include_vector is all FALSE, skip the iteration
+    if (all(!include_vector)) {
+      next
+    }
 
     tog <- join_all_signals(
       all_signals,
@@ -185,6 +190,11 @@ renderSpectralPlots <- function() {
 
     togs[[length(togs)+1]] <- tog
 
+  }
+
+  # If no valid experiments were found, return NULL
+  if (length(togs) == 0) {
+    return(NULL)
   }
 
   tog <- do.call(rbind, togs)
