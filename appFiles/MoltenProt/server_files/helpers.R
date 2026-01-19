@@ -44,7 +44,7 @@ make_derivative_df <- function(temp,conditon) {data.frame("Tm_derivative"=temp,"
 
 ## Make row-wise fluorescence dataframe 
 
-make_df4plot_row_wise <- function(fluo_matrix,cond_vector,temp_vector) {
+make_df4plot_row_wise <- function(fluo_matrix,cond_vector,temp_vector,init=1) {
 
   if (ncol(fluo_matrix) != length(cond_vector)) return(NULL)
   if (nrow(fluo_matrix) != length(temp_vector)) return(NULL)
@@ -53,7 +53,7 @@ make_df4plot_row_wise <- function(fluo_matrix,cond_vector,temp_vector) {
   fluo_matrix <- unname(fluo_matrix)
   df          <- data.frame(fluo_matrix)
   
-  names4df     <- c(paste0(1:length(cond_vector),"_",cond_vector))
+  names4df     <- c(paste0(init:(init+length(cond_vector)-1),"_",cond_vector))
   
   colnames(df) <- names4df
   df$temp      <- temp_vector
@@ -67,9 +67,9 @@ make_df4plot_row_wise <- function(fluo_matrix,cond_vector,temp_vector) {
 ## Make fluorescence dataframe for plotting. Needs the fluorescence matrix, conditions and temperatures
 ## The columns matches the condition vector and the rows matches the temperature vector
 
-make_df4plot <- function(fluo_matrix,cond_vector,temp_vector) {
+make_df4plot <- function(fluo_matrix,cond_vector,temp_vector,init=1) {
   
-  df <- make_df4plot_row_wise(fluo_matrix,cond_vector,temp_vector)
+  df <- make_df4plot_row_wise(fluo_matrix,cond_vector,temp_vector,init)
   
   fluo_m <- reshape2::melt(df,id.vars="temp")
   colnames(fluo_m) <- c("temp","cond_","fluo")
@@ -93,6 +93,8 @@ py_dsf_to_df <- function(dsf_py_obj,mode='signal') {
 
   dfs <- list()
 
+  init <- 1
+
   for (name in available_experiments) {
 
     py_exp <- dsf_py_obj$experiments[[name]]
@@ -111,9 +113,11 @@ py_dsf_to_df <- function(dsf_py_obj,mode='signal') {
     fluo_m <- make_df4plot(
       fluo,
       conds,
-      temps
+      temps,
+      init
     )
 
+    init <- init + ncol(fluo)
     dfs[[length(dfs)+1]] <- fluo_m
 
   }
@@ -139,6 +143,8 @@ make_list_df4plot <- function(dsf_py_obj,chunck_n,mode='experimental') {
 
   names4df_all <- c()
 
+  init <- 1
+
   for (exp in exps) {
 
     py_obj <- dsf_py_obj$experiments[[exp]]
@@ -153,7 +159,9 @@ make_list_df4plot <- function(dsf_py_obj,chunck_n,mode='experimental') {
     cond_vector <- py_obj$fitted_conditions
 
     df           <- data.frame(fluo_matrix)
-    names4df     <- c(paste0(1:length(cond_vector),"_",cond_vector))
+
+    end <- init + length(cond_vector) - 1
+    names4df     <- c(paste0(init:end,"_",cond_vector))
     colnames(df) <- names4df
     df$temp      <- temp_vector
 
@@ -162,6 +170,7 @@ make_list_df4plot <- function(dsf_py_obj,chunck_n,mode='experimental') {
 
     fluo_m$Condition <- sapply(as.character(fluo_m$cond_), function(x) paste(strsplit(x,"_")[[1]][-1],collapse="_") )
 
+    init <- end + 1
     dfs[[length(dfs)+1]] <- fluo_m
     names4df_all <- c(names4df_all,names4df)
 
