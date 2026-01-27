@@ -14,34 +14,15 @@ reticulate::source_python("helpers.py")
 reticulate::source_python("main.py")
 
 dsf <- ManyDsfFitters()
-print("here")
-dsf$add_experiment('./www/demo.xlsx')
-print("here")
-dsf$set_signal(dsf$all_signals[1])
-print("here")
 
-temps <- dsf$get_experiment_properties('temps',flatten=TRUE,mode="all")
+dsf$add_experiment('/home/os/thermochemicalDenaturationApp/appFiles/Chemelt/www/panta.xlsx')
+dsf$add_experiment('/home/os/thermochemicalDenaturationApp/appFiles/Chemelt/www/MX3005P.txt')
 
-print("here")
+print(dsf$all_signals)
 
-min_temp <- round(min(temps) - 273.15) # To degree celsius
-max_temp <- round(max(temps) - 273.15) # To degree celsius
+dsf$unify_signals(
+    signal_list = c("350nm","Fluorescence"),
+    new_signal_name = "Unified_Signal"
+)
 
-dsf$set_colors(rep('blue',48))
-
-dsf$select_conditions(c(rep(TRUE,4),rep(FALSE,44)))
-
-dsf$estimate_fluo_derivates()
-dsf$set_baseline_types(2,2)
-dsf$estimate_baselines_parameters()
-dsf$equilibrium_two_state(0)
-
-std_error_estimate_all <- dsf$get_experiment_properties('std_error_estimate_all',flatten=TRUE)
-
-print(std_error_estimate_all)
-
-max_std_err <- max(std_error_estimate_all)
-
-
-exp <- dsf$experiments[['demo']]
-print(exp$std_error_estimate_all)
+print(dsf$all_signals)

@@ -21,6 +21,23 @@ class ManyDsfFitters:
         self.available_experiments = None  # List of names of all experiments available, that can handle the selected signal
         self.full_spectrum_experiments = None
 
+    def create_files_vector(self):
+
+        """
+        Create a vector with as many elements as total conditions in all experiments,
+        where each element is the file name of the experiment it belongs to.
+        """
+        files = []
+
+        for name,fitter in self.experiments.items():
+
+            n_exp_conditions = len(fitter.conditions_original)
+            files += [name]*n_exp_conditions
+
+        self.files_vector = np.array(files)
+
+        return None
+
     def add_experiment(self, file,name=None):
 
         if name is None:
@@ -38,6 +55,7 @@ class ManyDsfFitters:
 
             self.set_unique_signals()
             self.set_full_spectrum()
+            self.create_files_vector()
 
             return read_status
 
@@ -78,6 +96,54 @@ class ManyDsfFitters:
 
         return None
 
+    def unify_signals(self,signal_list,new_signal_name):
+
+        """
+        Given a list of signals, for all experiments that contain any of those signals,
+        change the name of that signal to new_signal_name.
+        """
+
+        signal_list = to_list(signal_list)
+
+        for name, fitter in self.experiments.items():
+
+            signals = fitter.signals
+
+            # If two signal names are in the signals of this experiment, raise error
+            if len(set(signals).intersection(set(signal_list))) > 1:
+
+                raise ValueError(f"Experiment {name} contains more than one of the signals to be unified.")
+
+            # If one of the signal names is in the signals of this experiment, change its name
+            for signal in signal_list:
+
+                if signal in signals and signal != new_signal_name:
+
+                    fluo = fitter.signal_data_dictionary[signal]
+                    temp = fitter.temp_data_dictionary[signal]
+
+                    fitter.signal_data_dictionary[new_signal_name] = fluo
+                    fitter.temp_data_dictionary[new_signal_name] = temp
+
+                    # Remove old signal data
+                    del fitter.signal_data_dictionary[signal]
+                    del fitter.temp_data_dictionary[signal]
+
+                    # Update signals numpy array
+                    signals_list = list(fitter.signals) if not isinstance(fitter.signals, list) else fitter.signals
+
+                    signals_list.insert(0, new_signal_name)
+                    signals_list.remove(signal)
+
+                    fitter.signals = np.array(signals_list)
+
+                    break
+
+        self.set_unique_signals()
+
+        return None
+
+
     def delete_experiments(self, names="ALL"):
 
         if names == "ALL":
@@ -102,6 +168,7 @@ class ManyDsfFitters:
 
             self.set_unique_signals()
             self.set_full_spectrum()
+            self.create_files_vector()
 
         return None
 

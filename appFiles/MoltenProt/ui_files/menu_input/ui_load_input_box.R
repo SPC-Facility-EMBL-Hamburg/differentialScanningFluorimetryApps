@@ -21,19 +21,23 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
                   withBusyIndicatorUI(
         shinyjs::hidden(actionButton("Go","2. Load data!",class = "btn-primary")))),
       # End of Little hack to use the withBusyIndicatorUI function (loading spinner)
-      
-      column(8, p(HTML("<b>Load layout</b>"),
-                  span(shiny::icon("info-circle"), id = "info_uu1-12"),
-                  fileInput("layout_file", NULL,accept = c(".xlsx")),
-                  tippy::tippy_this(elementId = "info_uu1-12",
-                                    tooltip = "If desired, you can upload a xlsx file to complete the condition versus position Table.",placement = "right"))),
-      
-      column(4, p(HTML("<b>Sort</b>"),
-                  span(shiny::icon("info-circle"), id = "info_uu1-7"),
-                  checkboxInput("sort_conditions", "", FALSE),
-                  tippy::tippy_this(elementId = "info_uu1-7",
-                                    tooltip = "Rearrange the conditions order by the original condition names 
-                                            (Useful when analyzing many nDSF files with labels present in the Overview sheet)",placement = "right"))),
+
+      conditionalPanel("input.show_advanced",
+
+          column(8, p(HTML("<b>Load layout</b>"),
+                      span(shiny::icon("info-circle"), id = "info_uu1-12"),
+                      fileInput("layout_file", NULL,accept = c(".xlsx")),
+                      tippy::tippy_this(elementId = "info_uu1-12",
+                                        tooltip = "If desired, you can upload a xlsx file to complete the condition versus position Table.",placement = "right"))),
+
+          column(4, p(HTML("<b>Sort</b>"),
+                      span(shiny::icon("info-circle"), id = "info_uu1-7"),
+                      checkboxInput("sort_conditions", "", FALSE),
+                      tippy::tippy_this(elementId = "info_uu1-7",
+                                        tooltip = "Rearrange the conditions order by the original condition names
+                                                (Useful when analyzing many nDSF files with labels present in the Overview sheet)",placement = "right")))
+
+      ),
 
       column(5, p(HTML("<b>Signal</b>"),
                   selectInput("which", NULL,
@@ -43,7 +47,7 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
                   "Scattering"="Scattering"),
                   selectize = FALSE))),
       
-      column(6, p(HTML("<b>Normalization</b>"),
+      column(6, p(HTML("<b>Normalisation</b>"),
                   span(shiny::icon("info-circle"), id = "info_uu1-2"),
                   selectInput("normalization_type", NULL,
                               c("Raw Signal"                 = "Raw_signal",
@@ -70,33 +74,60 @@ box(title = "Input", width = 3, solidHeader = T, status = "primary",
                    sliderInput("sg_range", NULL,min = 5, max = 95,value = c(25,90)),
                    tippy::tippy_this(elementId = "info_uu1-4",
                                      tooltip = "To obtain a better fitting, select a temperature range close to the melting(s) transition(s).",placement = "right"))),
-      
-      column(5, p(HTML("<b>Median filter</b>"),
-                  span(shiny::icon("info-circle"), id = "info_uu1-5"),
-                  numericInput('median_filter',NULL, 0,min = 0, max = 6),
-                  tippy::tippy_this(elementId = "info_uu1-5",
-                                    tooltip = "Apply a rolling median filter to smooth curves and remove spikes, the minimum and maximum values are respectively 0 and 6 degrees",placement = "right"))),
-      
-      column(5, p(HTML("<b>SG window size</b>"),
-                  span(shiny::icon("info-circle"), id = "info_uu1-6"),
-                  numericInput('SG_window2',NULL, 7,min = 4, max = 10),
-                  tippy::tippy_this(elementId = "info_uu1-6",
-                    tooltip = "The Savitzky-Golay window size (in °C) is used to estimate the first and second derivative",placement = "right"))),
-      
-      column(4, p(HTML("<b>Select Series</b>"),
-                  span(shiny::icon("info-circle"), id = "info_uu1-8"),
-                  selectInput("selected_cond_series", NULL,c("ALL")),
-                  tippy::tippy_this(elementId = "info_uu1-8",
-                    tooltip = "Change the Series column labels (from \'A\' to \'B\' for example) and display only the desired conditions",
-                    placement = "right"))),
-      
+
+
+      conditionalPanel("input.show_advanced",
+
+          column(5, p(HTML("<b>Median filter</b>"),
+                      span(shiny::icon("info-circle"), id = "info_uu1-5"),
+                      numericInput('median_filter',NULL, 0,min = 0, max = 6),
+                      tippy::tippy_this(elementId = "info_uu1-5",
+                                        tooltip = "Apply a rolling median filter to smooth curves and remove spikes, the minimum and maximum values are respectively 0 and 6 degrees",placement = "right"))),
+
+          column(5, p(HTML("<b>SG window size</b>"),
+                      span(shiny::icon("info-circle"), id = "info_uu1-6"),
+                      numericInput('SG_window2',NULL, 7,min = 4, max = 10),
+                      tippy::tippy_this(elementId = "info_uu1-6",
+                        tooltip = "The Savitzky-Golay window size (in °C) is used to estimate the first and second derivative",placement = "right"))),
+
+          column(4, p(HTML("<b>Select Series</b>"),
+                      span(shiny::icon("info-circle"), id = "info_uu1-8"),
+                      selectInput("selected_cond_series", NULL,c("ALL")),
+                      tippy::tippy_this(elementId = "info_uu1-8",
+                        tooltip = "Change the Series column labels (from \'A\' to \'B\' for example) and display only the desired conditions",
+                        placement = "right")))
+      ),
+
+      # checkboxInput to show or hide advanced options
+      column(6, p(HTML("<b>Show advanced options</b>"),
+                  checkboxInput("show_advanced", "", FALSE))),
+
+      conditionalPanel("input.show_advanced & output.multiple_files",
+
+        column(12, p(HTML('<p style="margin-bottom:0px;"></p>'),
+                              span(shiny::icon("info-circle"), id = "info_uu1-simplify"),
+                    actionButton(
+                      inputId = "unify_signals",label = "Unify signals",
+                      icon("layer-group"),
+                      style="color: #fff; background-color: #337ab7;
+               border-color: #2e6da4"),
+                    tippy::tippy_this(
+                      elementId = "info_uu1-simplify",
+                      tooltip = "Select a list of signals from different experiments and unify them to the same signal name.
+                      For example, you can rename 'Ratio' and 'F350/F330' to 'Ratio' to analyse them together.",
+                      placement = "right"
+               ))
+        )
+
+      ),
+
       conditionalPanel(
         'output.full_spectra',
         
-        column(12, p(HTML('<p style="margin-bottom:0px;"><br></p>'),
+        column(12, p(HTML('<p style="margin-bottom:0px;"></p>'),
                     actionButton(
                       inputId = "show_full_spectra_menu",label = "Show full spectrum menu",
-                      icon("arrow-right"),
+                      icon("wrench"),
                       style="color: #fff; background-color: #337ab7; 
                border-color: #2e6da4"))
         )

@@ -33,6 +33,8 @@ observeEvent(input$dsf_files,{
     dsf_data_files <- input$dsf_files$datapath
     names <- input$dsf_files[[1]]
 
+    reactives$multiple_files <- length(dsf_data_files) > 1
+
     sorted_indices <- order(names)
 
     dsf_data_files <- dsf_data_files[sorted_indices]
@@ -84,6 +86,7 @@ observeEvent(input$dsf_files,{
 
         tables <- get_renderRHandsontable_list(
           conditions,
+          dsf$files_vector,
           reactives$global_n_rows_conditions_table
         )
 
@@ -243,6 +246,7 @@ observeEvent(input$layout_file$datapath,{
 
     tables <- get_renderRHandsontable_list(
       new_conditions,
+      dsf$files_vector,
       reactives$global_n_rows_conditions_table
     )
     
@@ -263,6 +267,7 @@ observeEvent(input$sort_conditions,{
 
   tables <- get_renderRHandsontable_list(
     conditions_original,
+    dsf$files_vector,
     reactives$global_n_rows_conditions_table
   )
   
@@ -295,6 +300,7 @@ observeEvent(input$show_colors_column,{
 
     tables <- get_renderRHandsontable_list(
         conditions_vector,
+        dsf$files_vector,
         reactives$global_n_rows_conditions_table,
         colors=color_vector,
         series=series_vector,

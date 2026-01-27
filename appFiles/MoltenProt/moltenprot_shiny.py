@@ -906,7 +906,7 @@ class DsfFitter:
         # Sort the DataFrame based on the custom order
         name_df = name_df.sort_values(by='well')
 
-        conditions = name_df['name'].values.astype(str)
+        conditions = name_df['name'].values.astype(str).tolist()
 
         self.conditions_original =  conditions
         self.conditions          =  conditions

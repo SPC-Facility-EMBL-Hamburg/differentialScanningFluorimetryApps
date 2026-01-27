@@ -1,5 +1,6 @@
 reactives <- reactiveValues(
   data_loaded                    = FALSE, # To control the display of plots/tables
+  multiple_files                 = FALSE, # To control the display of the unify signals button
   have_plot_data                 = FALSE, # To control the display of plots/tables
   nconditions                    = 0,     # Number of total conditions imported
   report_was_created             = FALSE, # To activate the download report button
@@ -33,9 +34,13 @@ output$model_is_two_state  <- reactive( { return(reactives$model_is_two_state) }
 
 output$model_name  <- reactive( { return(reactives$model_name) } )
 
+output$multiple_files <- reactive({
+  return(reactives$multiple_files)})
+
 outputOptions(output, "data_loaded"       , suspendWhenHidden = FALSE)
 outputOptions(output, "report_was_created", suspendWhenHidden = FALSE)
 outputOptions(output, "full_spectra"      , suspendWhenHidden = FALSE)
 outputOptions(output, "model_is_two_state", suspendWhenHidden = FALSE)
 outputOptions(output, "model_name", suspendWhenHidden = FALSE)
 outputOptions(output, "data_was_fitted", suspendWhenHidden = FALSE)
+outputOptions(output, "multiple_files"    , suspendWhenHidden = FALSE)

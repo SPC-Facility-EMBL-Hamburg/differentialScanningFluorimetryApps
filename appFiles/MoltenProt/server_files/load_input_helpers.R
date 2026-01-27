@@ -46,19 +46,21 @@ get_include_vector <- function(table1,table2,table3,table4,
   include_vector    <- DF1$Include
   conditions_vector <- DF1$Condition
   series_vector     <- DF1$Series
+  file_vector <- DF1$File
 
   color_vector        <- NULL
   color_given_by_user <- "Color" %in% colnames(DF1)
 
-  # Find if there is a column named "Color" in the first table
-  if (color_given_by_user) color_vector      <- DF1$Color
 
+  # Find if there is a column named "Color" in the first table
+  if (color_given_by_user) color_vector <- DF1$Color
 
   if (!(is.null(table2))) {
     DF2 <- hot_to_r(table2)
     include_vector    <- c(include_vector,DF2$Include)
     conditions_vector <- c(conditions_vector,DF2$Condition)
     series_vector     <- c(series_vector,DF2$Series)
+    file_vector  <- c(file_vector,DF2$File)
 
     if (color_given_by_user) color_vector <- c(color_vector,DF2$Color)
 
@@ -69,7 +71,7 @@ get_include_vector <- function(table1,table2,table3,table4,
     include_vector    <- c(include_vector,DF3$Include)
     conditions_vector <- c(conditions_vector,DF3$Condition)
     series_vector     <- c(series_vector,DF3$Series)
-
+    file_vector  <- c(file_vector,DF3$File)
     if (color_given_by_user) color_vector <- c(color_vector,DF3$Color)
   }
   
@@ -78,15 +80,17 @@ get_include_vector <- function(table1,table2,table3,table4,
     include_vector    <- c(include_vector,DF4$Include)
     conditions_vector <- c(conditions_vector,DF4$Condition)
     series_vector     <- c(series_vector,DF4$Series)
-
+    file_vector  <- c(file_vector,DF4$File)
     if (color_given_by_user) color_vector <- c(color_vector,DF4$Color)
+
   }
   
   return(list(
     "include_vector"=include_vector,
     "conditions_vector"=conditions_vector,
     "series_vector"=series_vector,
-    "color_vector"=color_vector))
+    "color_vector"=color_vector,
+    "file_vector"=file_vector))
 }
 
 ## Constraint the median filter value between 0 and 6
@@ -118,126 +122,9 @@ split_vec <- function(vector,chunck_n) {
   return(sels)
 }
 
-## Get vector of DSF_molten_prot_fit objects from many nanoDSF xlsx files 
-dsf_objects_from_xlsx_files <- function(xlsx_files) {
-  dsf_objects <- c()
-  
-  signal_keys   <- c("330nm","350nm","Ratio","Scattering")
-  
-  i <- 1
-  for (xlsx in xlsx_files) {
-    i <- i+1
-    var_name <- paste("dsf_", i, sep = "")
-    assign(var_name,   DSF_molten_prot_fit())
-    
-    # Get file type: nanotemper panta or prometheus
-    sheet_names <- get_sheet_names_of_xlsx(xlsx)
-    
-    if ("Data Export" %in% sheet_names) {
-      eval(parse(text=var_name))$load_panta_xlsx(xlsx)
-      # Remove scattering signal because this data is not present in Panta instruments
-    } else if ("Profiles_raw" %in% sheet_names) {
-      eval(parse(text=var_name))$load_tycho_xlsx(xlsx)
-    } else {
-      eval(parse(text=var_name))$load_nano_dsf_xlsx(xlsx,sheet_names)
-    }
-    
-    datasetSignals <- eval(parse(text=var_name))$signals
-    
-    signal_keys    <- datasetSignals[datasetSignals %in% signal_keys]
-    
-    dsf_objects <- c(dsf_objects,eval(parse(text=var_name)))
-  }
-  return(list('dsf_objects'=dsf_objects,'signal_keys'=signal_keys))
-}
-
-## Remove non matching data given a certain tolerance
-## Used to remove rows from a dataframe where the temperatue data is not present in another dataframe 
-
-## Requires:
-## - addVector: temperature vector
-## - refVector: reference temperature vector
-
-filter_non_matching_temperature <- function(addVector,refVector,tolerance=0.1) {
-  
-  idx <- sapply(addVector, function(x) {
-    return(min(abs(x - refVector)) <= tolerance)
-  })
-  
-  return(idx) # boolean vector
-}
-
-## Merge DSF objects 
-get_merged_signal_dsf <- function(dsf_objects,signal_type) {
-
-  for (dsf_ob in dsf_objects) {
-    dsf_ob$set_signal(signal_type)
-  }
-
-  left_bound   <- max(sapply(dsf_objects, function(x) min(x$temps)))
-  right_bound  <- min(sapply(dsf_objects, function(x) max(x$temps)))
-  
-  # Get only the temperature range present in all files
-  for (dsf_ob in dsf_objects) {
-    dsf_ob$fluo   <- filter_fluo_by_temp(dsf_ob$fluo,dsf_ob$temps,left_bound,right_bound)
-    dsf_ob$temps  <- filter_temp_by_temp(dsf_ob$temps,left_bound,right_bound)
-  }
-  
-  # Get the one with less temperature data
-  ref_index <- which.min(sapply(dsf_objects,function(x) length(x$temps)))
-  dsf_ref   <- dsf_objects[[ref_index]]
-  
-  ref_df               <- data.frame("temp"=dsf_objects[[ref_index]]$temps,dsf_objects[[ref_index]]$fluo)
-  ref_df_colnames      <- c(dsf_objects[[ref_index]]$conditions_original)
-  
-  colnames(ref_df)[-1] <-  ref_df_colnames
-  
-  all_conditions <- ref_df_colnames
-  
-  setDT(ref_df)
-  setkey(ref_df, temp)
-  
-  i <- 0
-  for (dsf_ob in dsf_objects) {
-    i <- i+1
-    if (i != ref_index) {
-      df2add               <- data.frame("temp"=dsf_objects[[i]]$temps,dsf_objects[[i]]$fluo)
-      colnames2add         <- c(dsf_objects[[i]]$conditions_original)
-      colnames(df2add)[-1] <- colnames2add
-      
-      # Remove non-matching data
-      idx    <- filter_non_matching_temperature(df2add$temp,ref_df$temp)
-      df2add <- df2add[idx,]
-      
-      setDT(df2add)
-      setkey(df2add, temp)
-      #Merge datasets based on nearest temperature data
-      ref_df <- df2add[ref_df, roll="nearest"]
-      all_conditions <- c(colnames2add,all_conditions)
-    }
-  }
-  
-  conditions_original <- all_conditions
-  conditions          <- all_conditions
-  temps               <- np_array(ref_df$temp)
-  fluo                <- as.matrix(ref_df[,-c(1)])
-  colnames(fluo) <- NULL
-  
-  return(
-
-    list(
-        "temp"=temps,
-        "signal_type"=signal_type,
-        "signal"=fluo,
-        "conditions"=conditions,
-        "conditions_ori"=conditions_original
-    )
-
-  )
-}
 
 ## Get the 4 Tables data that will store the conditions names, series and include information
-get_table_data <- function(conditions, n_rows_conditions_table, colors=NULL, series=NULL, include=NULL) {
+get_table_data <- function(conditions,files, n_rows_conditions_table, colors=NULL, series=NULL, include=NULL) {
 
   data_lst <- list()
 
@@ -262,7 +149,8 @@ get_table_data <- function(conditions, n_rows_conditions_table, colors=NULL, ser
   data1 <- data.frame(Condition=as.character(conditions[1:d1max]),
                       Series=as.character(series[1:d1max]),
                       Include=as.logical(include[1:d1max]),
-                      Color=as.character(colors[1:d1max])
+                      Color=as.character(colors[1:d1max]),
+                      File=as.character(files[1:d1max])
                       )
 
   data_lst[[1]] <- data1
@@ -276,7 +164,8 @@ get_table_data <- function(conditions, n_rows_conditions_table, colors=NULL, ser
                         Condition=as.character(conditions[(n_rows_conditions_table+1):d2max]),
                         Series=as.character(series[(n_rows_conditions_table+1):d2max]),
                         Include=as.logical(include[(n_rows_conditions_table+1):d2max]),
-                        Color=as.character(colors[(n_rows_conditions_table+1):d2max])
+                        Color=as.character(colors[(n_rows_conditions_table+1):d2max]),
+                        File=as.character(files[(n_rows_conditions_table+1):d2max])
                         )
 
     data_lst[[2]] <- data2
@@ -292,7 +181,8 @@ get_table_data <- function(conditions, n_rows_conditions_table, colors=NULL, ser
                         Condition=as.character(conditions[(n_rows_conditions_table*2+1):d3max]),
                         Series=as.character(series[(n_rows_conditions_table*2+1):d3max]),
                         Include=as.logical(include[(n_rows_conditions_table*2+1):d3max]),
-                        Color=as.character(colors[(n_rows_conditions_table*2+1):d3max])
+                        Color=as.character(colors[(n_rows_conditions_table*2+1):d3max]),
+                        File=as.character(files[(n_rows_conditions_table*2+1):d3max])
                         )
 
     data_lst[[3]] <- data3
@@ -308,7 +198,8 @@ get_table_data <- function(conditions, n_rows_conditions_table, colors=NULL, ser
                         Condition=as.character(conditions[(n_rows_conditions_table*3+1):d4max]),
                         Series=as.character(series[(n_rows_conditions_table*3+1):d4max]),
                         Include=as.logical(include[(n_rows_conditions_table*3+1):d4max]),
-                        Color=as.character(colors[(n_rows_conditions_table*3+1):d4max])
+                        Color=as.character(colors[(n_rows_conditions_table*3+1):d4max]),
+                        File=as.character(files[(n_rows_conditions_table*3+1):d4max])
                         )
 
     data_lst[[4]] <- data4
@@ -321,30 +212,37 @@ get_table_data <- function(conditions, n_rows_conditions_table, colors=NULL, ser
 ## Get the 4 renderRHandsontable Tables
 get_renderRHandsontable_list <- function(
     conditions,
+    files,
     n_rows_conditions_table,
     colors=NULL,
     series=NULL,
     include=NULL,
     hide_color_column=FALSE) {
 
-    tables_data <- get_table_data(conditions,n_rows_conditions_table,colors,series,include)
+    tables_data <- get_table_data(conditions,files,n_rows_conditions_table,colors,series,include)
 
     tables <- lapply(seq_along(tables_data),function(i){
 
         df <- tables_data[[i]]
-        color_cells <- data.frame(col=4,row=1:nrow(df))
 
         if (hide_color_column) {
 
+            df_no_color <- df[, names(df) != "Color", drop = FALSE]
+
             table <- renderRHandsontable({
-                rhandsontable(df[,1:3], # Remove the color column
+                rhandsontable(df_no_color, # Remove the color column
                     rowHeaders = NULL,
                     maxRows=n_rows_conditions_table
                 ) %>%
-                hot_col(c(1),allowInvalid = TRUE)
+                hot_col("Condition",allowInvalid = TRUE,renderer = myrenderer) %>%
+                hot_col(c("Series"),renderer = myrenderer) %>%
+                hot_col("Include",renderer = myrendererBoolean) %>%
+                hot_col("File",readOnly = TRUE)
             })
 
         } else {
+
+            color_cells <- data.frame(col = which(names(df) == "Color"), row = 1:nrow(df))
 
             table <- renderRHandsontable({
                 rhandsontable(df,
@@ -353,9 +251,10 @@ get_renderRHandsontable_list <- function(
                     row_highlight = color_cells$row - 1,
                     maxRows=n_rows_conditions_table
                 ) %>%
-                hot_col(c(1),allowInvalid = TRUE,renderer = myrenderer) %>%
-                hot_col(c(2,4),renderer = myrenderer) %>%
-                hot_col(c(3),renderer = myrendererBoolean)
+                hot_col("Condition",allowInvalid = TRUE,renderer = myrenderer) %>%
+                hot_col(c("Series","Color"),renderer = myrenderer) %>%
+                hot_col("Include",renderer = myrendererBoolean) %>%
+                hot_col("File",readOnly = TRUE)
             })
 
         }
