@@ -1,6 +1,3 @@
-from filecmp import demo
-
-import numpy as np
 from main import  ManyDsfFitters
 
 panta_file = "./www/panta.xlsx"

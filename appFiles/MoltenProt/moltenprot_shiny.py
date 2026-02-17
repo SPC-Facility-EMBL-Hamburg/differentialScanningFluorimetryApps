@@ -879,10 +879,6 @@ class DsfFitter:
             samples_name_simple += sn
             samples_well_simple += sw
 
-        name_df = pd.DataFrame({
-            'well': samples_well_simple,
-            'name': samples_name_simple})
-
         scans   = [item["_scans"] for item in data_dict['Wells']]
         n_scans = len(scans)
 
@@ -893,20 +889,25 @@ class DsfFitter:
         temperatures = []
         signals      = []
 
-        temperature_fixed = np.arange(5,110,0.5)
-
         well = [item["PhysicalLocation"] for item in data_dict['Wells']]
 
-        # Create a categorical data type with the custom order
-        cat_type = pd.CategoricalDtype(categories=well, ordered=True)
+        name_df = pd.DataFrame({
+            'well': samples_well_simple,
+            'name': samples_name_simple})
+
+        # remove rows with empty names
+        name_df = name_df[name_df["well"] != ""]
 
         # Convert the column to the categorical data type
-        name_df['well'] = name_df['well'].astype(cat_type)
+        name_df['well'] = pd.Categorical(name_df['well'], categories=well, ordered=True)
 
         # Sort the DataFrame based on the custom order
         name_df = name_df.sort_values(by='well')
 
-        conditions = name_df['name'].values.astype(str).tolist()
+        # Create a new name column that is the concatenation of the name and the well, to avoid problems with empty names
+        name_df['name_and_well'] = name_df['name'].astype(str) + " " + name_df['well'].astype(str)
+
+        conditions = name_df['name_and_well'].values.tolist()
 
         self.conditions_original =  conditions
         self.conditions          =  conditions
@@ -923,6 +924,10 @@ class DsfFitter:
 
         self.wavelengths = wavelengths
         named_wls = [str(wl) + ' nm' for wl in wavelengths]
+
+        # Interpolate the signal data to a fixed temperature grid, so we can process, plot and fit the data faster
+        step = 1 if len(conditions) > 196 else 0.5
+        temperature_fixed = np.arange(5,110,step)
 
         for i in range(n_wavelengths):
 
