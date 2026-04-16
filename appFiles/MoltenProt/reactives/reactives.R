@@ -323,7 +323,11 @@ output$signal <- renderPlotly({
 
   fluo_m <- py_dsf_to_df(dsf)
 
+  print(head(fluo_m))
+
   colors <- dsf$get_experiment_properties('colors',flatten=TRUE)
+
+  print(colors)
 
   p <- plot_fluo_signal(fluo_m,colors,input$which,
                         input$plot_width, input$plot_height,

@@ -214,37 +214,16 @@ generate_max_der_df <- function(tms,conditions) {
 ## Condition is the real condition, cond_ is: paste0(x,"_",Condition) 
 ## where x is a integer that differs for each capillary
 add_rep_vec <- function(fluo_m) {
-  
-  fluo_m_nested <- fluo_m %>% group_by(Condition,cond_) %>% nest() %>% dplyr::arrange(Condition)
-  
-  rep_temp <- 1
-  rep_vec <- c(rep_temp)
-  
-  rows_fluo_m_nested <- nrow(fluo_m_nested)
-  
-  if (rows_fluo_m_nested > 1) {
-    
-    for (i in 2:rows_fluo_m_nested) {
-      
-      conc       <- fluo_m_nested$Condition[i]
-      prev_conc  <- fluo_m_nested$Condition[i-1]
-      
-      conc_      <- fluo_m_nested$cond_[i]
-      prev_conc_ <- fluo_m_nested$cond_[i-1]
-      
-      if ( conc == prev_conc & prev_conc_ != conc_ ) { rep_temp <- rep_temp + 1 }
-      if ( conc != prev_conc )                       { rep_temp <- 1            }
-      
-      rep_vec <- c(rep_vec,rep_temp)
-    }
-    
-  }
-  
-  fluo_m_nested$rep <- rep_vec
-  fluo_m <- fluo_m_nested %>% unnest(cols=c(data)) %>% ungroup()
-  
+
+  fluo_m <- fluo_m %>%
+    group_by(Condition) %>%
+    mutate(rep = as.integer(factor(cond_, levels = unique(cond_)))) %>%
+    ungroup()
+
   return(fluo_m)
 }
+
+
 
 ## If there are replicates, add the replicate number to the condition column
 ## Requires two columns in the dataframe. cond_ and Condition. Fore more details
