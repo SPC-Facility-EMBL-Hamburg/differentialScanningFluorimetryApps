@@ -838,6 +838,50 @@ elements separated by semicolons.'}
 
         return None
 
+    def load_biorad_txt(self, filename):
+        """
+        This function reads a Bio-Rad exported `.txt` file in .tsv format, extracts temperature
+        and fluorescence signal data, and stores them in the object's internal
+        dictionaries.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the Bio-Rad `.txt` file
+
+        Notes
+        -----
+        The following object attributes are modified:
+
+        - ``self.conditions_original`` : numpy.ndarray
+            Array containing the names of the experimental conditions
+
+        - ``self.signals`` : str
+            Set to the string ``"SYBR"``.
+
+        - ``self.signal_data_dictionary`` : dict
+            Updated with a new entry under key ``"SYBR"``, containing fluorescence signal values.
+
+        - ``self.temp_data_dictionary`` : dict
+            Updated with a new entry under key ``"SYBR"``, containing temperature values for each measurement.
+        """
+
+        # Read file and drop first column (empty)
+        raw_data = pd.read_csv(filename, sep="\t")
+        raw_data = raw_data.iloc[:, 1:]
+
+        # Update attributes
+        self.conditions_original = np.array(raw_data.columns[1:])
+        self.signals = "SYBR"
+        self.signal_data_dictionary[self.signals] = (
+            np.array(raw_data.iloc[:, 1:]).astype("float")
+        )
+        self.temp_data_dictionary[self.signals] = (
+            np.array(raw_data.iloc[:, 0]).astype("float")
+        )
+
+        return None
+
     def set_signal(self,which):
 
         """
@@ -852,7 +896,7 @@ elements separated by semicolons.'}
         self.signal_type = which
         self.set_dt()
 
-        # Move the selectes signal to the first position - useful to export the JSON
+        # Move the selected signal to the first position - useful to export the JSON
         self.signals = self.signals[self.signals != which]
         self.signals = np.insert(self.signals, 0, which)
 
