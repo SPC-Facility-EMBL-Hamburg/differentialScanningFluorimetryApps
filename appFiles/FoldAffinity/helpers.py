@@ -74,6 +74,9 @@ def detect_txt_file_type(file):
             if line.startswith('Segment') and 'Well' in line:
                 return 'MX3005P'
 
+            if line.startswith("\tTemperature"):
+                return "BioRAD"
+
             splittedLine = line.split()
             if 'Well' in splittedLine and 'Target' in splittedLine and 'Reading' in splittedLine:
                 return 'QuantStudio'

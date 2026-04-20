@@ -10,7 +10,7 @@ user        <- Sys.info()['user']
 reticulate::use_python(paste0("/home/",user,"/myenv/bin/python"), required = TRUE)
 
 # developer path
-base_dir <- paste0("/home/",user,"/differentialScanningFluorimetryApps/appFiles/",appName,"/")
+base_dir <- paste0('/home/cschuster/Projects/differentialScanningFluorimetryApps', '/appFiles/FoldAffinity/')
 
 # path for the docker user
 if (user == 'shiny') {
