@@ -10,7 +10,7 @@ user        <- Sys.info()['user']
 # Detect if we have macbook or linux
 if (Sys.info()['sysname'] == "Darwin") {
   reticulate::use_python(paste0("/Users/",user,"/myenv/bin/python"), required = TRUE)
-  base_dir <- paste0("/Users/",user,"/Desktop/arise/differentialScanningFluorimetryApps/appFiles/",appName,"/")
+  base_dir <- paste0('/home/cschuster/Projects/differentialScanningFluorimetryApps', '/appFiles/MoltenProt/')
 } else {
   reticulate::use_python(paste0("/home/",user,"/myenv/bin/python"), required = TRUE)
   base_dir <- paste0("/home/",user,"/differentialScanningFluorimetryApps/appFiles/",appName,"/")

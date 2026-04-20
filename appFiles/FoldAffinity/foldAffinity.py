@@ -870,13 +870,15 @@ elements separated by semicolons.'}
         raw_data = pd.read_csv(filename, sep="\t")
         raw_data = raw_data.iloc[:, 1:]
 
+        signal = "SYBR"
+
         # Update attributes
         self.conditions_original = np.array(raw_data.columns[1:])
-        self.signals = "SYBR"
-        self.signal_data_dictionary[self.signals] = (
+        self.signals = np.array([signal])
+        self.signal_data_dictionary[signal] = (
             np.array(raw_data.iloc[:, 1:]).astype("float")
         )
-        self.temp_data_dictionary[self.signals] = (
+        self.temp_data_dictionary[signal] = (
             np.array(raw_data.iloc[:, 0]).astype("float")
         )
 
