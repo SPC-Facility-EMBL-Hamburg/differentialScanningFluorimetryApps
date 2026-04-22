@@ -1320,6 +1320,56 @@ class DsfFitter:
 
         return None
 
+
+    def load_biorad_txt(self, filename):
+        """
+        This function reads a Bio-Rad exported `.txt` file in .tsv format, extracts temperature
+        and fluorescence signal data, and stores them in the object's internal
+        dictionaries.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the Bio-Rad `.txt` file
+
+        Notes
+        -----
+        The following object attributes are modified:
+
+        - ``self.conditions_original`` : numpy.ndarray
+            Array containing the names of the experimental conditions
+
+        - ``self.signals`` : str
+            Set to the string ``"SYBR"``.
+
+        - ``self.signal_data_dictionary`` : dict
+            Updated with a new entry under key ``"SYBR"``, containing fluorescence signal values.
+
+        - ``self.temp_data_dictionary`` : dict
+            Updated with a new entry under key ``"SYBR"``, containing temperature values for each measurement.
+        """
+
+        # Read file and drop first column (empty)
+        raw_data = pd.read_csv(filename, sep="\t")
+        raw_data = raw_data.iloc[:, 1:]
+
+        signal = "SYBR"
+
+        self.init_dictionary_to_store_fluo_temp_data()
+
+        # Update attributes
+        self.conditions_original = np.array(raw_data.columns[1:])
+        self.signals = np.array([signal])
+        self.signal_data_dictionary[signal] = (
+            np.array(raw_data.iloc[:, 1:]).astype("float")
+        )
+        self.temp_data_dictionary[signal] = (
+            np.array(raw_data.iloc[:, 0]).astype("float")
+        )
+
+        return None
+
+
     def create_ratio_signal(self,signal_num,signal_den):
 
         """
