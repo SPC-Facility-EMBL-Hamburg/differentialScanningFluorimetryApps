@@ -13,7 +13,7 @@ if (Sys.info()['sysname'] == "Darwin") {
   base_dir <- paste0('/home/cschuster/Projects/differentialScanningFluorimetryApps', '/appFiles/MoltenProt/')
 } else {
   reticulate::use_python(paste0("/home/",user,"/myenv/bin/python"), required = TRUE)
-  base_dir <- paste0("/home/",user,"/differentialScanningFluorimetryApps/appFiles/",appName,"/")
+  base_dir <- paste0('/home/cschuster/Projects/differentialScanningFluorimetryApps', '/appFiles/MoltenProt/')
 }
 # path for the docker user
 if (user == 'shiny') {

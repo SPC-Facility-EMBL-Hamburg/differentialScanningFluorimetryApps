@@ -272,6 +272,7 @@ class DsfFitter:
                 'panta' : self.load_panta_xlsx,
                 'QuantStudio' : self.load_quantstudio_txt,
                 'MX3005P' : self.load_agilent_mx3005p_qPCR_txt,
+                'BioRAD' : self.load_biorad_txt,
                 'csv' : self.load_csv_file,
                 'supr' : self.load_supr_dsf,
                 'uncle' : self.load_uncle_multi_channel,
@@ -1359,13 +1360,17 @@ class DsfFitter:
 
         # Update attributes
         self.conditions_original = np.array(raw_data.columns[1:])
+        self.conditions = self.conditions_original
         self.signals = np.array([signal])
         self.signal_data_dictionary[signal] = (
             np.array(raw_data.iloc[:, 1:]).astype("float")
         )
+
         self.temp_data_dictionary[signal] = (
             np.array(raw_data.iloc[:, 0]).astype("float")
         )
+
+        self.temp_data_dictionary[signal] = temperature_to_kelvin(self.temp_data_dictionary[signal])
 
         return None
 
