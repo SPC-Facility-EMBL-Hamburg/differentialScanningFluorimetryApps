@@ -7,14 +7,9 @@ invisible(lapply(packages, library, character.only = TRUE))
 appName     <- "MoltenProt"
 user        <- Sys.info()['user']
 
-# Detect if we have macbook or linux
-if (Sys.info()['sysname'] == "Darwin") {
-  reticulate::use_python(paste0("/Users/",user,"/myenv/bin/python"), required = TRUE)
-  base_dir <- paste0('/home/cschuster/Projects/differentialScanningFluorimetryApps', '/appFiles/MoltenProt/')
-} else {
-  reticulate::use_python(paste0("/home/",user,"/myenv/bin/python"), required = TRUE)
-  base_dir <- paste0("/home/",user,"/differentialScanningFluorimetryApps/appFiles/",appName,"/")
-}
+# Developer path
+base_dir <- paste0("/home/",user,"/differentialScanningFluorimetryApps/appFiles/",appName,"/")
+
 # path for the docker user
 if (user == 'shiny') {
   base_dir <- paste0("/home/shiny/",appName,'/')
