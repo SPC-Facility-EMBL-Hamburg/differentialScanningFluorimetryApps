@@ -14,7 +14,7 @@ base_dir <- paste0("/home/",user,"/differentialScanningFluorimetryApps/appFiles/
 if (user == 'shiny') {
   base_dir <- paste0("/home/shiny/",appName,'/')
 }
-
+reticulate::use_python(paste0("/home/",user,"/myenv/bin/python"), required = TRUE)
 global_chunck_n     <- 16 # should be global_plot_columns * global_plot_rows
 global_plot_columns <- 4
 global_plot_rows    <- 4
