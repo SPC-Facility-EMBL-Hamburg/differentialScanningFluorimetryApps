@@ -884,6 +884,67 @@ elements separated by semicolons.'}
 
         return None
 
+
+    def load_lcs480_txt(self, filename):
+            """
+            This function reads a Roche LightCycler 480 exported `.txt` file in .tsv format,
+            extracts temperature and fluorescence signal data,
+            and stores them in the object's internal dictionaries.
+    
+            Parameters
+            ----------
+            filename : str
+                Path to the LightCycler 480 `.txt` file
+    
+            Notes
+            -----
+            The following object attributes are modified:
+    
+            - ``self.conditions_original`` : numpy.ndarray
+                Array containing the names of the experimental conditions
+    
+            - ``self.signals`` : str
+                Set to the string ``"SYBR"``.
+    
+            - ``self.signal_data_dictionary`` : dict
+                Updated with a new entry under key ``"SYBR"``, containing fluorescence signal values.
+    
+            - ``self.temp_data_dictionary`` : dict
+                Updated with a new entry under key ``"SYBR"``, containing temperature values for each measurement.
+            """
+            excitation_wavenumbers = ["440-", "465-", "498-", "533-", "618-"]
+
+            # Read file and drop first column (empty)
+            raw_data = pd.read_csv(filename, sep="\t", skiprows=1)
+
+            possible_signals = [col for col in raw_data.columns if any(col.startswith(w) for w in excitation_wavenumbers)]
+            signals = []
+
+            for signal in possible_signals:
+
+                signal_data = (
+                raw_data.pivot_table(
+                    index="Temp",
+                    columns="SamplePos",
+                    values=signal,
+                    aggfunc="mean",  # averages rows if a position has duplicate Temp values
+                )
+                .reset_index()
+                .sort_values("Temp")
+                )
+                signal_data.columns.name = None
+
+                self.signal_data_dictionary[signal] = np.array(signal_data.iloc[:, 1:]).astype("float")
+                self.temp_data_dictionary[signal] = np.array(signal_data.iloc[:, 0]).astype("float")
+
+                signals.append(signal)
+    
+            self.conditions_original = np.array(raw_data["SamplePos"].unique())
+            self.signals = np.array(signals)
+    
+            return None
+
+    
     def set_signal(self,which):
 
         """
