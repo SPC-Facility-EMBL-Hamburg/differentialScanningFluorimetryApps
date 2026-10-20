@@ -921,12 +921,12 @@ elements separated by semicolons.'}
             signals = []
 
             for signal in possible_signals:
-
                 signal_data = (
                 raw_data.pivot_table(
                     index="Temp",
                     columns="SamplePos",
                     values=signal,
+                    sort=False,
                     aggfunc="mean",  # averages rows if a position has duplicate Temp values
                 )
                 .reset_index()

@@ -93,6 +93,7 @@ observeEvent(input$FLf,{
         if (fileType == 'MX3005P')     dsf$load_Agilents_MX3005P_qPCR_txt(input$FLf$datapath)
         if (fileType == 'QuantStudio') dsf$load_QuantStudio_txt(input$FLf$datapath)
         if (fileType == 'BioRAD')      dsf$load_biorad_txt(input$FLf$datapath)
+        if (fileType == 'LCS480')      dsf$load_lcs480_txt(input$FLf$datapath)
         
       }
       

@@ -71,6 +71,10 @@ def detect_txt_file_type(file):
         ls       = rf.read().splitlines()
 
         for line in ls:
+
+            if line.startswith("Raw Data"):
+                return "LCS480"
+
             if line.startswith('Segment') and 'Well' in line:
                 return 'MX3005P'
 
