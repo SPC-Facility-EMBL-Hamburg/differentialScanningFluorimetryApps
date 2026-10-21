@@ -112,7 +112,7 @@ add_rep_vec <- function(fluo_m) {
   
   rep_temp <- 1
   rep_vec <- c(rep_temp)
-  
+
   for (i in 2:nrow(fluo_m_nested)) {
     
     conc       <- fluo_m_nested$conc[i]
@@ -120,15 +120,15 @@ add_rep_vec <- function(fluo_m) {
     
     conc_      <- fluo_m_nested$conc_[i]
     prev_conc_ <- fluo_m_nested$conc_[i-1]
-      
+
     if (conc == prev_conc & prev_conc_ != conc_) {
       rep_temp <- rep_temp+1
     }
-      
+
     if (conc != prev_conc) {
       rep_temp <- 1
     }
-    
+
     rep_vec <- c(rep_vec,rep_temp)
   }
   
