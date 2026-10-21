@@ -903,14 +903,14 @@ elements separated by semicolons.'}
             - ``self.conditions_original`` : numpy.ndarray
                 Array containing the names of the experimental conditions
     
-            - ``self.signals`` : str
-                Set to the string ``"SYBR"``.
+            - ``self.signals`` : np.array
+                Set to the available ones in the dataset.
     
             - ``self.signal_data_dictionary`` : dict
-                Updated with a new entry under key ``"SYBR"``, containing fluorescence signal values.
+                Updated with new entries under keys corresponding to each signal, containing fluorescence signal values.
     
             - ``self.temp_data_dictionary`` : dict
-                Updated with a new entry under key ``"SYBR"``, containing temperature values for each measurement.
+                Updated with new entries under keys corresponding to each signal, containing temperature values for each measurement.
             """
             excitation_wavenumbers = ["440-", "465-", "498-", "533-", "618-"]
 
